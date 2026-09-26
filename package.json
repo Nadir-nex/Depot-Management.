@@ -1,0 +1,13 @@
+{
+  "name": "depot-management",
+  "version": "0.1.0",
+  "description": "Depot Management - Electron + SQLite (Arabic RTL, Inventory first)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5"
+  }
+}

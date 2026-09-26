@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>إدارة المستودع</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="modules/inventory/inventory.css" />
+  <link rel="stylesheet" href="modules/customers/customers.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar on RIGHT because RTL -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">📦</div>
+        <div>
+          <div class="brand-title">المستودع</div>
+          <div class="brand-sub">Depot Management</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-btn active" data-module="inventory">📋 المخزون</button>
+        <button class="nav-btn" data-module="customers">👥 الزبائن</button>
+        <button class="nav-btn" data-module="orders">🧾 الطلبيات</button>
+        <button class="nav-btn" data-module="payments">💰 الدفعات</button>
+        <button class="nav-btn" data-module="staff">👷 الموظفون والمركبات</button>
+        <button class="nav-btn" data-module="deliveries">🛣️ التوصيل</button>
+        <button class="nav-btn" data-module="dashboard">📊 اللوحة</button>
+      </nav>
+
+      <div class="sidebar-foot">v0.2 — المخزون + الزبائن</div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+      <div id="module-root"></div>
+    </main>
+  </div>
+
+  <script src="modules/inventory/inventory.js"></script>
+  <script src="modules/customers/customers.js"></script>
+  <script>
+    const root = document.getElementById('module-root');
+    const btns = document.querySelectorAll('.nav-btn');
+
+    const comingSoon = (name) => `
+      <div class="soon">
+        <h2>${name}</h2>
+        <p>هذا القسم يأتي لاحقاً.</p>
+      </div>`;
+
+    const names = {
+      customers: 'الزبائن', orders: 'الطلبيات', payments: 'الدفعات',
+      staff: 'الموظفون والمركبات', deliveries: 'التوصيل', dashboard: 'اللوحة'
+    };
+
+    function load(module) {
+      btns.forEach(b => b.classList.toggle('active', b.dataset.module === module));
+      if (module === 'inventory') {
+        window.InventoryModule.mount(root);
+      } else if (module === 'customers') {
+        window.CustomersModule.mount(root);
+      } else {
+        root.innerHTML = comingSoon(names[module] || module);
+      }
+    }
+
+    btns.forEach(b => b.addEventListener('click', () => load(b.dataset.module)));
+    load('inventory');
+  </script>
+</body>
+</html>

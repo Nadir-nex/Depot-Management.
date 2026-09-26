@@ -1,0 +1,142 @@
+<div class="inv">
+  <div class="inv-head">
+    <div>
+      <h1>المخزون — المنتجات</h1>
+      <p class="muted">منتجات + شحنات فقط — الكمية تُحسب من الشحنات</p>
+    </div>
+    <div class="inv-actions">
+      <button id="btn-add-item" class="btn primary">＋ منتج جديد</button>
+      <button id="btn-add-shipment" class="btn cyan">＋ شحنة</button>
+      <button id="btn-cat" class="btn ghost">＋ فئة</button>
+      <button id="btn-comp" class="btn ghost">＋ شركة</button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card clickable active" id="card-products" title="عرض المنتجات"><div class="card-label">عدد المنتجات</div><div class="card-val" id="stat-items">—</div></div>
+    <div class="card clickable" id="card-qty" title="عرض المنتجات"><div class="card-label">إجمالي الكمية</div><div class="card-val" id="stat-qty">—</div></div>
+    <div class="card warn clickable" id="card-exp" title="عرض الشحنات القريبة من الانتهاء"><div class="card-label">قريب الانتهاء (3 أشهر)</div><div class="card-val" id="stat-exp">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="ابحث…" />
+    <select id="filter-cat"><option value="">كل الفئات</option></select>
+    <select id="filter-comp"><option value="">كل الشركات</option></select>
+    <button id="btn-refresh" class="btn ghost">تحديث</button>
+  </div>
+
+  <div class="viewbar">
+    <div class="view-title" id="view-title">قائمة المنتجات</div>
+    <select id="sort-exp" class="hidden">
+      <option value="expiry_asc">الأقرب انتهاءً</option>
+      <option value="qty_desc">الأكبر كمية</option>
+      <option value="newest">الأحدث</option>
+    </select>
+  </div>
+
+  <div class="table-wrap" id="products-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>المنتج</th>
+          <th>باركود</th>
+          <th>الفئة</th>
+          <th>الشركة</th>
+          <th>الكمية</th>
+          <th>أقرب انتهاء</th>
+          <th>آخر شراء</th>
+          <th>آخر بيع</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="items-body"></tbody>
+    </table>
+  </div>
+
+  <div class="table-wrap hidden" id="expiry-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>المنتج</th>
+          <th>الفئة</th>
+          <th>الشركة</th>
+          <th>كمية الشحنة</th>
+          <th>الانتهاء</th>
+          <th>شراء</th>
+          <th>بيع</th>
+          <th>المورّد</th>
+        </tr>
+      </thead>
+      <tbody id="expiry-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Modal: product -->
+  <div id="modal-item" class="modal hidden">
+    <div class="modal-box">
+      <h3>منتج جديد</h3>
+      <label>اسم المنتج<input id="f-item-name" placeholder="مثلا: حليب المراعي 1ل" /></label>
+      <label>باركود / QR (اختياري)<input id="f-item-barcode" placeholder="مثلا: 611125…" dir="ltr" /></label>
+      <div class="grid2">
+        <label>الفئة<select id="f-item-cat"><option value="">— بدون —</option></select></label>
+        <label>الشركة<select id="f-item-comp"><option value="">— بدون —</option></select></label>
+      </div>
+      <div class="row">
+        <button id="save-item" class="btn primary">حفظ</button>
+        <button class="btn ghost close-modal" data-close="modal-item">إلغاء</button>
+      </div>
+      <p class="err" id="err-item"></p>
+    </div>
+  </div>
+
+  <!-- Modal: category -->
+  <div id="modal-cat" class="modal hidden">
+    <div class="modal-box">
+      <h3>فئة جديدة</h3>
+      <label>الاسم<input id="f-cat-name" placeholder="مثلا: ألبان" /></label>
+      <label>اللون<input id="f-cat-color" type="color" value="#0288d1" dir="ltr" /></label>
+      <div class="row">
+        <button id="save-cat" class="btn primary">حفظ</button>
+        <button class="btn ghost close-modal" data-close="modal-cat">إلغاء</button>
+      </div>
+      <p class="err" id="err-cat"></p>
+    </div>
+  </div>
+
+  <!-- Modal: company -->
+  <div id="modal-comp" class="modal hidden">
+    <div class="modal-box">
+      <h3>شركة جديدة</h3>
+      <label>الاسم<input id="f-comp-name" placeholder="مثلا: المراعي" /></label>
+      <label>اللون<input id="f-comp-color" type="color" value="#6a1b9a" dir="ltr" /></label>
+      <div class="row">
+        <button id="save-comp" class="btn primary">حفظ</button>
+        <button class="btn ghost close-modal" data-close="modal-comp">إلغاء</button>
+      </div>
+      <p class="err" id="err-comp"></p>
+    </div>
+  </div>
+
+  <!-- Modal: shipment -->
+  <div id="modal-shipment" class="modal hidden">
+    <div class="modal-box">
+      <h3>شحنة جديدة</h3>
+      <label>المنتج<select id="f-sh-item"></select></label>
+      <div class="grid2">
+        <label>الكمية (QTY)<input id="f-sh-qty" type="number" min="1" value="10" dir="ltr" /></label>
+        <label>المورّد<input id="f-sh-supplier" placeholder="مثلا: مورد العاصمة (اختياري)" /></label>
+      </div>
+      <div class="grid2">
+        <label>سعر الشراء<input id="f-sh-buy" type="number" min="0" step="0.01" value="0" dir="ltr" /></label>
+        <label>سعر البيع<input id="f-sh-sell" type="number" min="0" step="0.01" value="0" dir="ltr" /></label>
+      </div>
+      <label>تاريخ الانتهاء<input id="f-sh-exp" type="date" dir="ltr" /></label>
+      <div class="row">
+        <button id="save-shipment" class="btn cyan">حفظ الشحنة</button>
+        <button class="btn ghost close-modal" data-close="modal-shipment">إلغاء</button>
+      </div>
+      <p class="hint">QTY = كم حبة وصلت في هذه الشحنة. السعر يُحفظ مع الشحنة، ليس مع المنتج.</p>
+      <p class="err" id="err-sh"></p>
+    </div>
+  </div>
+</div>

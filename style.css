@@ -1,0 +1,84 @@
+:root {
+  --bg: #f4fafd;
+  --card: #ffffff;
+  --cyan-50: #e8f8ff;
+  --cyan-100: #d3f1ff;
+  --cyan-500: #00bcd4;
+  --cyan-600: #0288d1;
+  --cyan-700: #01579b;
+  --ink: #0f2a3d;
+  --muted: #6b8aa0;
+  --danger: #e53935;
+  --warn: #fb8c00;
+  --ok: #2e7d32;
+  --radius: 19px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.app { display: flex; min-height: 100vh; }
+
+/* Sidebar — appears on right automatically in RTL */
+.sidebar {
+  width: 338px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--cyan-50) 100%);
+  border-left: 1px solid var(--cyan-100);
+  padding: 24px 19px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.brand { display: flex; gap: 16px; align-items: center; }
+.brand-icon {
+  width: 59px; height: 59px; border-radius: 16px;
+  background: linear-gradient(135deg, var(--cyan-500), var(--cyan-600));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; color: #fff;
+}
+.brand-title { font-weight: 800; font-size: 24px; }
+.brand-sub { font-size: 15px; color: var(--muted); }
+
+.nav { display: flex; flex-direction: column; gap: 11px; }
+.nav-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: right;
+  padding: 15px 16px;
+  border-radius: 14px;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: all .15s ease;
+}
+.nav-btn:hover { background: var(--cyan-100); }
+.nav-btn.active {
+  background: linear-gradient(135deg, var(--cyan-500), var(--cyan-600));
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(2,136,209,.25);
+}
+
+.sidebar-foot { margin-top: auto; font-size: 16px; color: var(--muted); text-align: center; }
+
+.main { flex: 1; padding: 30px; max-width: none; min-width: 0; }
+
+.soon {
+  background: var(--card);
+  border: 1px solid var(--cyan-100);
+  border-radius: var(--radius);
+  padding: 54px;
+  text-align: center;
+  color: var(--muted);
+}

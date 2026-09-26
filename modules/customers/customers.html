@@ -1,0 +1,92 @@
+<div class="cus">
+  <div class="cus-head">
+    <div>
+      <h1>الزبائن</h1>
+      <p class="muted">بطاقة الزبون: رقم + اسم — تفاصيل الاتصال والموقع في الداخل</p>
+    </div>
+    <div class="cus-actions">
+      <button id="c-btn-add" class="btn primary">＋ زبون جديد</button>
+      <button id="c-btn-district" class="btn cyan">＋ منطقة</button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card clickable active" id="c-card-active" title="عرض الزبائن"><div class="card-label">الزبائن</div><div class="card-val" id="c-stat-active">—</div></div>
+    <div class="card clickable" id="c-card-districts" title="عرض المناطق"><div class="card-label">المناطق</div><div class="card-val" id="c-stat-districts">—</div></div>
+    <div class="card warn clickable" id="c-card-deleted" title="عرض المحذوفين للاستعادة"><div class="card-label">محذوف (قابل للاستعادة)</div><div class="card-val" id="c-stat-deleted">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="seg" id="c-modes">
+      <button class="seg-btn" data-mode="id">رقم الزبون</button>
+      <button class="seg-btn active" data-mode="name">الاسم</button>
+      <button class="seg-btn" data-mode="phone">رقم الهاتف</button>
+    </div>
+    <input id="c-search" type="text" placeholder="ابحث باسم الزبون…" />
+    <select id="c-filter-district"><option value="">كل المناطق</option></select>
+    <button id="c-btn-refresh" class="btn ghost">تحديث</button>
+  </div>
+
+  <div class="viewbar">
+    <div class="view-title" id="c-view-title">قائمة الزبائن</div>
+  </div>
+
+  <div class="table-wrap" id="c-list-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>رقم الزبون</th>
+          <th>اسم الزبون</th>
+          <th>الحي/المنطقة</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="c-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Customer form modal: create + edit/detail -->
+  <div id="c-modal" class="modal hidden">
+    <div class="modal-box wide">
+      <h3 id="c-modal-title">زبون جديد</h3>
+      <div class="c-idline hidden" id="c-idline">رقم الزبون: <strong id="c-field-id"></strong></div>
+      <label>اسم الزبون<input id="c-f-name" placeholder="مثلا: دكان النور" /></label>
+      <label>الحي/المنطقة<select id="c-f-district"><option value="">— بدون —</option></select></label>
+      <div class="c-label">أرقام الهاتف</div>
+      <div id="c-phones"></div>
+      <div class="row">
+        <input id="c-f-newphone" placeholder="مثلا: 0555123456…" dir="ltr" />
+        <button id="c-btn-addphone" class="btn cyan">＋ هاتف</button>
+      </div>
+      <div class="warnbox hidden" id="c-phone-warn"></div>
+      <div class="grid2">
+        <label>خط العرض (GPS)<input id="c-f-lat" placeholder="مثلا: 36.75…" dir="ltr" /></label>
+        <label>خط الطول (GPS)<input id="c-f-lng" placeholder="مثلا: 3.06…" dir="ltr" /></label>
+      </div>
+      <label>ملاحظات<textarea id="c-f-notes" rows="3" placeholder="مثلا: بجانب المسجد، يفضل التوصيل صباحا…"></textarea></label>
+      <div class="c-meta hidden" id="c-meta"></div>
+      <div class="futurebox">سجل الطلبيات والدفعات سيظهر هنا لاحقاً.</div>
+      <div class="row">
+        <button id="c-btn-save" class="btn primary">حفظ</button>
+        <button id="c-btn-delete" class="btn danger hidden">حذف الزبون</button>
+        <button id="c-btn-restore" class="btn primary hidden">استعادة الزبون</button>
+        <button class="btn ghost close-modal" data-close="c-modal">إغلاق</button>
+      </div>
+      <p class="err" id="c-err"></p>
+    </div>
+  </div>
+
+  <!-- District modal -->
+  <div id="c-modal-district" class="modal hidden">
+    <div class="modal-box">
+      <h3>المناطق</h3>
+      <div id="c-district-list"></div>
+      <div class="row">
+        <input id="c-f-district-name" placeholder="مثلا: حي 200 مسكن…" />
+        <button id="c-btn-save-district" class="btn primary">إضافة</button>
+        <button class="btn ghost close-modal" data-close="c-modal-district">إغلاق</button>
+      </div>
+      <p class="err" id="c-err-district"></p>
+    </div>
+  </div>
+</div>
