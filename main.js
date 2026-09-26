@@ -53,6 +53,19 @@ ipcMain.handle('customers:phones:add', (_e, payload) => db.addCustomerPhone(payl
 ipcMain.handle('customers:phones:delete', (_e, id) => db.deleteCustomerPhone(id));
 ipcMain.handle('customers:phones:check', (_e, phone, excludeId) => db.findPhoneOwners(phone, excludeId ?? null));
 
+// ---- IPC: Orders (Phase B) ----
+ipcMain.handle('orders:list', (_e, opts) => db.listOrders(opts || {}));
+ipcMain.handle('orders:get', (_e, id) => db.getOrder(id));
+ipcMain.handle('orders:create', (_e, payload) => db.createOrder(payload));
+ipcMain.handle('orders:update-draft', (_e, payload) => db.updateDraftOrder(payload));
+ipcMain.handle('orders:confirm', (_e, id) => db.confirmOrder(id));
+ipcMain.handle('orders:set-status', (_e, id, to) => db.setOrderStatus(id, to));
+ipcMain.handle('orders:set-delivery-date', (_e, id, date) => db.setDeliveryDate(id, date));
+ipcMain.handle('orders:delete', (_e, id) => db.deleteOrder(id));
+ipcMain.handle('orders:customer-list', (_e, customerId) => db.listCustomerOrders(customerId));
+ipcMain.handle('inventory:product-pricing', (_e, itemId) => db.productPricing(itemId));
+ipcMain.handle('inventory:products-search', (_e, mode, query) => db.listProductsForOrder(mode, query));
+
 app.whenReady().then(() => {
   db.init();
   createWindow();

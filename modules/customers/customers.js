@@ -119,7 +119,30 @@
   }
 
   // ---- reusable create popup (Orders will call this later) ----
-  function openCreate(onCreated) {
+  // Modals live in document.body (moved there once) so the popup works
+  // from any module without mounting the whole Customers screen.
+  let modalsBound = false;
+
+  async function ensureModals() {
+    if (!document.getElementById('c-modal')) {
+      const res = await fetch('modules/customers/customers.html');
+      const tmp = document.createElement('div');
+      tmp.innerHTML = await res.text();
+      for (const id of ['c-modal', 'c-modal-district']) {
+        const n = tmp.querySelector('#' + id);
+        if (n) document.body.appendChild(n);
+      }
+    }
+    if (!modalsBound) { bindModalHandlers(); modalsBound = true; }
+  }
+
+  function maybeRefreshList() {
+    if (document.querySelector('.cus')) refresh();
+  }
+
+  async function openCreate(onCreated) {
+    await ensureModals();
+    await loadDistricts();
     editingId = null;
     createPhones = [];
     afterCreate = typeof onCreated === 'function' ? onCreated : null;
@@ -142,6 +165,8 @@
   }
 
   async function openDetail(id) {
+    await ensureModals();
+    await loadDistricts();
     const cust = await window.api.getCustomer(id);
     if (!cust) return;
     editingId = id;
@@ -165,7 +190,19 @@
     document.getElementById('c-btn-delete').classList.toggle('hidden', deleted);
     document.getElementById('c-btn-restore').classList.toggle('hidden', !deleted);
     await renderEditPhones(cust);
+    await renderOrderHistory(cust.id);
     open('c-modal');
+  }
+
+  async function renderOrderHistory(customerId) {
+    const box = document.getElementById('c-history');
+    if (typeof window.api.listCustomerOrders !== 'function') return;
+    let orders = [];
+    try { orders = await window.api.listCustomerOrders(customerId); } catch { return; }
+    if (!orders.length) { box.innerHTML = 'لا طلبيات لهذا الزبون بعد. سجل الدفعات سيظهر هنا لاحقاً.'; return; }
+    box.innerHTML = '<strong>طلبيات الزبون:</strong>' + orders.slice(0, 10).map(o =>
+      `<div class="c-district-row"><span>#${o.id} <small dir="ltr">C${customerId}-${o.id}</small> — ${o.total} DA — ${o.created_at ? escapeHtml(o.created_at.slice(0, 10)) : ''}</span><button class="link" data-oh="${o.id}">عرض</button></div>`
+    ).join('') + (orders.length > 10 ? `<small>… و ${orders.length - 10} أخرى</small>` : '') + '<br><small>سجل الدفعات سيظهر هنا لاحقاً.</small>';
   }
 
   async function refreshDistrictList() {
@@ -180,29 +217,9 @@
     }
   }
 
-  async function mount(root) {
-    // fetch template if not already mounted
-    if (!root.querySelector('.cus')) {
-      const res = await fetch('modules/customers/customers.html');
-      root.innerHTML = await res.text();
-    }
-    await loadDistricts();
-
-    document.getElementById('c-btn-add').onclick = () => openCreate();
-    document.getElementById('c-btn-district').onclick = async () => {
-      document.getElementById('c-err-district').textContent = '';
-      document.getElementById('c-f-district-name').value = '';
-      await refreshDistrictList();
-      open('c-modal-district');
-    };
-    document.getElementById('c-btn-refresh').onclick = refresh;
-    document.getElementById('c-search').oninput = () => refresh();
-    document.getElementById('c-filter-district').onchange = () => refresh();
-    document.querySelectorAll('#c-modes .seg-btn').forEach(b => b.onclick = () => setSearchMode(b.dataset.mode));
-    document.getElementById('c-card-active').onclick = () => setListView('active');
-    document.getElementById('c-card-deleted').onclick = () => setListView('deleted');
-    document.getElementById('c-card-districts').onclick = () => document.getElementById('c-btn-district').click();
-    root.querySelectorAll('.close-modal').forEach(b => b.onclick = () => close(b.dataset.close));
+  function bindModalHandlers() {
+    document.querySelectorAll('#c-modal .close-modal, #c-modal-district .close-modal')
+      .forEach(b => b.onclick = () => close(b.dataset.close));
 
     // add phone (create: local row + live dup check; edit: immediate save)
     document.getElementById('c-btn-addphone').onclick = async () => {
@@ -223,7 +240,7 @@
           showDupWarn([{ phone: ph, owners: r.owners || [] }]);
           const cust = await window.api.getCustomer(editingId);
           await renderEditPhones(cust);
-          refresh();
+          maybeRefreshList();
         } catch (e) { document.getElementById('c-err').textContent = e.message; }
       }
     };
@@ -257,7 +274,7 @@
         if (editingId === null) {
           const r = await window.api.addCustomer({ ...payload, phones: createPhones });
           close('c-modal');
-          await loadDistricts(); await refresh();
+          await loadDistricts(); maybeRefreshList();
           if (afterCreate) { const cb = afterCreate; afterCreate = null; cb(r.id); }
           else if (r.duplicatePhones && r.duplicatePhones.length) {
             // non-blocking: show the new card with the warning visible
@@ -267,7 +284,7 @@
         } else {
           await window.api.updateCustomer({ id: editingId, ...payload });
           close('c-modal');
-          await refresh();
+          maybeRefreshList();
         }
         document.getElementById('c-err').textContent = '';
       } catch (e) { document.getElementById('c-err').textContent = e.message; }
@@ -279,7 +296,7 @@
       try {
         await window.api.deleteCustomer(editingId);
         close('c-modal');
-        await refresh();
+        maybeRefreshList();
       } catch (e) { document.getElementById('c-err').textContent = e.message; }
     };
 
@@ -288,7 +305,7 @@
       try {
         await window.api.restoreCustomer(editingId);
         close('c-modal');
-        await refresh();
+        maybeRefreshList();
       } catch (e) { document.getElementById('c-err').textContent = e.message; }
     };
 
@@ -299,14 +316,51 @@
         document.getElementById('c-err-district').textContent = '';
         await refreshDistrictList();
         await loadDistricts();
-        refresh();
+        maybeRefreshList();
       } catch (e) { document.getElementById('c-err-district').textContent = e.message; }
     };
+
+    document.getElementById('c-history').onclick = (e) => {
+      const b = e.target.closest('[data-oh]');
+      if (!b || !window.OrdersModule) return;
+      const oid = Number(b.dataset.oh);
+      close('c-modal');
+      document.querySelector('.nav-btn[data-module="orders"]')?.click();
+      setTimeout(() => window.OrdersModule.openDetail(oid), 250);
+    };
+  }
+
+  async function mount(root) {
+    // content template only — modals live in document.body via ensureModals()
+    if (!root.querySelector('.cus')) {
+      const res = await fetch('modules/customers/customers.html');
+      const tmp = document.createElement('div');
+      tmp.innerHTML = await res.text();
+      tmp.querySelectorAll('#c-modal, #c-modal-district').forEach(n => n.remove());
+      root.innerHTML = tmp.innerHTML;
+    }
+    await ensureModals();
+    await loadDistricts();
+
+    document.getElementById('c-btn-add').onclick = () => openCreate();
+    document.getElementById('c-btn-district').onclick = async () => {
+      document.getElementById('c-err-district').textContent = '';
+      document.getElementById('c-f-district-name').value = '';
+      await refreshDistrictList();
+      open('c-modal-district');
+    };
+    document.getElementById('c-btn-refresh').onclick = refresh;
+    document.getElementById('c-search').oninput = () => refresh();
+    document.getElementById('c-filter-district').onchange = () => refresh();
+    document.querySelectorAll('#c-modes .seg-btn').forEach(b => b.onclick = () => setSearchMode(b.dataset.mode));
+    document.getElementById('c-card-active').onclick = () => setListView('active');
+    document.getElementById('c-card-deleted').onclick = () => setListView('deleted');
+    document.getElementById('c-card-districts').onclick = () => document.getElementById('c-btn-district').click();
 
     document.getElementById('c-body').onclick = async (e) => {
       const o = e.target.closest('[data-open]');
       const r = e.target.closest('[data-restore]');
-      if (o) { await loadDistricts(); openDetail(Number(o.dataset.open)); }
+      if (o) { openDetail(Number(o.dataset.open)); }
       else if (r) {
         try { await window.api.restoreCustomer(Number(r.dataset.restore)); refresh(); }
         catch (err) { window.alert(err.message); }
@@ -317,5 +371,5 @@
     await refresh();
   }
 
-  window.CustomersModule = { mount, openCreate };
+  window.CustomersModule = { mount, openCreate, openDetail };
 })();

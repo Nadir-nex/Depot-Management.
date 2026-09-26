@@ -1,0 +1,121 @@
+<div class="ord">
+  <div class="ord-head">
+    <div>
+      <h1>الطلبيات</h1>
+      <p class="muted">طلبية = زبون واحد + منتجات + تخفيض + تاريخ توصيل</p>
+    </div>
+    <div class="ord-actions">
+      <button id="o-btn-add" class="btn primary">＋ طلبية جديدة</button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card clickable active" id="o-card-all"><div class="card-label">كل الطلبيات</div><div class="card-val" id="o-stat-all">—</div></div>
+    <div class="card clickable" id="o-card-draft"><div class="card-label">مسودة</div><div class="card-val" id="o-stat-draft">—</div></div>
+    <div class="card clickable" id="o-card-active"><div class="card-label">قيد التنفيذ</div><div class="card-val" id="o-stat-active">—</div></div>
+    <div class="card clickable" id="o-card-done"><div class="card-label">تم التوصيل</div><div class="card-val" id="o-stat-done">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="seg" id="o-modes">
+      <button class="seg-btn active" data-mode="id">رقم الطلب</button>
+      <button class="seg-btn" data-mode="reference">المرجع</button>
+      <button class="seg-btn" data-mode="customer_id">رقم الزبون</button>
+      <button class="seg-btn" data-mode="customer_name">اسم الزبون</button>
+      <button class="seg-btn" data-mode="phone">الهاتف</button>
+    </div>
+    <input id="o-search" type="text" placeholder="ابحث برقم الطلب…" />
+    <select id="o-filter-status">
+      <option value="">كل الحالات</option>
+      <option value="draft">مسودة</option>
+      <option value="confirmed">مؤكدة</option>
+      <option value="waiting">بانتظار التوصيل</option>
+      <option value="out_for_delivery">خارج للتوصيل</option>
+      <option value="delivered">تم التوصيل</option>
+      <option value="cancelled">ملغاة</option>
+    </select>
+    <select id="o-filter-district"><option value="">كل المناطق</option></select>
+    <input id="o-filter-date" type="date" dir="ltr" title="تاريخ التوصيل" />
+    <button id="o-btn-sort" class="btn ghost" title="ترتيب">الأحدث ↓</button>
+    <button id="o-btn-refresh" class="btn ghost">تحديث</button>
+  </div>
+
+  <div class="viewbar">
+    <div class="view-title" id="o-view-title">قائمة الطلبيات</div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>رقم الطلب</th>
+          <th>المرجع</th>
+          <th>الزبون</th>
+          <th>المنطقة</th>
+          <th>أُنشئت</th>
+          <th>التوصيل</th>
+          <th>الإجمالي</th>
+          <th>الحالة</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="o-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Builder modal: create + edit draft -->
+  <div id="o-modal" class="modal hidden">
+    <div class="modal-box wide">
+      <h3 id="o-modal-title">طلبية جديدة</h3>
+
+      <div class="c-label">الزبون</div>
+      <div id="o-customer-box"></div>
+      <div class="row">
+        <input id="o-customer-search" placeholder="ابحث برقم أو اسم الزبون…" />
+        <button id="o-btn-customer-new" class="btn cyan">＋ زبون جديد</button>
+      </div>
+      <div id="o-customer-results"></div>
+
+      <div class="grid2">
+        <label>تاريخ التوصيل<input id="o-f-delivery" type="date" dir="ltr" /></label>
+        <label>ملاحظات الطلبية<textarea id="o-f-notes" rows="2" placeholder="مثلا: أضف 5 قارورات إضافية هذه المرة…"></textarea></label>
+      </div>
+
+      <div class="c-label">المنتجات</div>
+      <div class="row">
+        <div class="seg" id="o-pmodes">
+          <button class="seg-btn active" data-mode="name">اسم المنتج</button>
+          <button class="seg-btn" data-mode="barcode">الباركود</button>
+        </div>
+        <input id="o-product-search" placeholder="ابحث باسم المنتج…" />
+      </div>
+      <div id="o-product-results"></div>
+      <div id="o-items"></div>
+      <div class="warnbox hidden" id="o-stock-warn"></div>
+
+      <div class="grid2">
+        <label>التخفيض (DA)<input id="o-f-discount" type="number" min="0" step="1" value="0" dir="ltr" /></label>
+        <div class="o-totals">
+          <div>المجموع: <strong id="o-subtotal">0</strong> DA</div>
+          <div>الإجمالي: <strong id="o-total">0</strong> DA</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="o-btn-save" class="btn primary">حفظ الطلبية</button>
+        <button class="btn ghost close-modal" data-close="o-modal">إلغاء</button>
+      </div>
+      <p class="err" id="o-err"></p>
+    </div>
+  </div>
+
+  <!-- Detail / receipt modal -->
+  <div id="o-modal-detail" class="modal hidden">
+    <div class="modal-box wide">
+      <div id="o-detail"></div>
+      <div class="row" id="o-detail-actions"></div>
+      <p class="err" id="o-detail-err"></p>
+      <div class="row"><button class="btn ghost close-modal" data-close="o-modal-detail">إغلاق</button></div>
+    </div>
+  </div>
+</div>

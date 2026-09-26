@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="modules/inventory/inventory.css" />
   <link rel="stylesheet" href="modules/customers/customers.css" />
+  <link rel="stylesheet" href="modules/orders/orders.css" />
 </head>
 <body>
   <div class="app">
@@ -30,7 +31,7 @@
         <button class="nav-btn" data-module="dashboard">📊 اللوحة</button>
       </nav>
 
-      <div class="sidebar-foot">v0.2 — المخزون + الزبائن</div>
+      <div class="sidebar-foot">v0.3 — المخزون + الزبائن + الطلبيات</div>
     </aside>
 
     <!-- Main content -->
@@ -41,6 +42,7 @@
 
   <script src="modules/inventory/inventory.js"></script>
   <script src="modules/customers/customers.js"></script>
+  <script src="modules/orders/orders.js"></script>
   <script>
     const root = document.getElementById('module-root');
     const btns = document.querySelectorAll('.nav-btn');
@@ -62,6 +64,8 @@
         window.InventoryModule.mount(root);
       } else if (module === 'customers') {
         window.CustomersModule.mount(root);
+      } else if (module === 'orders') {
+        window.OrdersModule.mount(root);
       } else {
         root.innerHTML = comingSoon(names[module] || module);
       }

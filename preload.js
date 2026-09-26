@@ -21,5 +21,16 @@ contextBridge.exposeInMainWorld('api', {
   restoreCustomer: (id) => ipcRenderer.invoke('customers:restore', id),
   addCustomerPhone: (payload) => ipcRenderer.invoke('customers:phones:add', payload),
   deleteCustomerPhone: (id) => ipcRenderer.invoke('customers:phones:delete', id),
-  checkPhoneOwners: (phone, excludeId) => ipcRenderer.invoke('customers:phones:check', phone, excludeId ?? null)
+  checkPhoneOwners: (phone, excludeId) => ipcRenderer.invoke('customers:phones:check', phone, excludeId ?? null),
+  listOrders: (opts) => ipcRenderer.invoke('orders:list', opts),
+  getOrder: (id) => ipcRenderer.invoke('orders:get', id),
+  createOrder: (payload) => ipcRenderer.invoke('orders:create', payload),
+  updateDraftOrder: (payload) => ipcRenderer.invoke('orders:update-draft', payload),
+  confirmOrder: (id) => ipcRenderer.invoke('orders:confirm', id),
+  setOrderStatus: (id, to) => ipcRenderer.invoke('orders:set-status', id, to),
+  setOrderDeliveryDate: (id, date) => ipcRenderer.invoke('orders:set-delivery-date', id, date),
+  deleteOrder: (id) => ipcRenderer.invoke('orders:delete', id),
+  listCustomerOrders: (customerId) => ipcRenderer.invoke('orders:customer-list', customerId),
+  getProductPricing: (itemId) => ipcRenderer.invoke('inventory:product-pricing', itemId),
+  searchProductsForOrder: (mode, query) => ipcRenderer.invoke('inventory:products-search', mode, query)
 });

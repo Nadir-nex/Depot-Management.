@@ -65,6 +65,29 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_customers_deleted ON customers(deleted_at);
     CREATE INDEX IF NOT EXISTS idx_phones_customer ON customer_phones(customer_id);
     CREATE INDEX IF NOT EXISTS idx_phones_number ON customer_phones(phone_number);
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL REFERENCES customers(id),
+      delivery_date TEXT,
+      status TEXT NOT NULL DEFAULT 'draft',
+      discount_amount REAL NOT NULL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      item_id INTEGER NOT NULL REFERENCES items(id),
+      qty INTEGER NOT NULL CHECK (qty > 0),
+      unit_price REAL NOT NULL CHECK (unit_price > 0),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_delivery ON orders(delivery_date);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orderitems_order ON order_items(order_id);
+    CREATE INDEX IF NOT EXISTS idx_orderitems_item ON order_items(item_id);
   `);
   // migration for DBs created before categories/companies
   try { sqlite.exec('ALTER TABLE items ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL'); } catch {}
@@ -156,18 +179,31 @@ function addShipment({ item_id, qty, buy_price, sell_price, expiry_date, supplie
   const q = parseInt(qty, 10);
   if (!item_id) throw new Error('اختر المنتج');
   if (!Number.isFinite(q) || q <= 0) throw new Error('الكمية يجب أن تكون أكبر من 0');
-  const r = db.prepare(`
-    INSERT INTO shipments (item_id, qty, buy_price, sell_price, expiry_date, supplier)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
-    item_id,
-    q,
-    Number(buy_price) || 0,
-    Number(sell_price) || 0,
-    (expiry_date || '').trim() || null,
-    (supplier || '').trim() || ''
-  );
-  return { id: Number(r.lastInsertRowid) };
+  db.exec('BEGIN');
+  try {
+    const r = db.prepare(`
+      INSERT INTO shipments (item_id, qty, buy_price, sell_price, expiry_date, supplier)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      item_id,
+      q,
+      Number(buy_price) || 0,
+      Number(sell_price) || 0,
+      (expiry_date || '').trim() || null,
+      (supplier || '').trim() || ''
+    );
+    // selling-price rule: product sells at its highest receipt sell_price —
+    // synchronize all receipts of this product to the new maximum.
+    const mx = db.prepare('SELECT MAX(sell_price) AS m FROM shipments WHERE item_id = ?').get(item_id).m;
+    if (Number(mx) > 0) {
+      db.prepare('UPDATE shipments SET sell_price = ? WHERE item_id = ? AND sell_price != ?').run(mx, item_id, mx);
+    }
+    db.exec('COMMIT');
+    return { id: Number(r.lastInsertRowid) };
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
 }
 
 function listShipments(itemId) {
@@ -375,4 +411,307 @@ function deleteCustomerPhone(phoneId) {
   return { id: phoneId };
 }
 
-module.exports = { init, addItem, listItems, addShipment, listShipments, listShipmentsDetailed, getOverview, listCategories, addCategory, listCompanies, addCompany, listDistricts, addDistrict, addCustomer, listCustomers, getCustomer, updateCustomer, deleteCustomer, restoreCustomer, addCustomerPhone, deleteCustomerPhone, findPhoneOwners };
+// ---------------- Orders (Phase B) ----------------
+
+const ORDER_STATUSES = ['draft', 'confirmed', 'waiting', 'out_for_delivery', 'delivered', 'cancelled'];
+const ORDER_TRANSITIONS = {
+  draft: ['confirmed', 'cancelled'],
+  confirmed: ['waiting', 'cancelled'],
+  waiting: ['out_for_delivery', 'cancelled'],
+  out_for_delivery: ['delivered', 'cancelled'],
+  delivered: [],
+  cancelled: []
+};
+
+function orderRef(orderId, customerId) {
+  return `C${customerId}-${orderId}`;
+}
+
+// current selling price = highest receipt sell_price; stock = SUM(qty)
+function productPricing(itemId) {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT COALESCE(MAX(sell_price), 0) AS price, COALESCE(SUM(qty), 0) AS stock
+    FROM shipments WHERE item_id = ?
+  `).get(itemId);
+  return { price: Number(row.price) || 0, stock: Number(row.stock) || 0 };
+}
+
+// mode: 'name' | 'barcode' — products with price+stock for order building
+function listProductsForOrder(mode = 'name', query = '') {
+  const db = getDb();
+  const q = (query || '').trim();
+  const cond = q === '' ? '1=1' : (mode === 'barcode' ? `COALESCE(i.barcode,'') LIKE ?` : `i.name LIKE ?`);
+  const params = q === '' ? [] : [`%${q}%`];
+  return db.prepare(`
+    SELECT i.id, i.name, i.barcode,
+      COALESCE(MAX(s.sell_price), 0) AS price,
+      COALESCE(SUM(s.qty), 0) AS stock
+    FROM items i
+    LEFT JOIN shipments s ON s.item_id = i.id
+    WHERE ${cond}
+    GROUP BY i.id
+    ORDER BY i.name
+    LIMIT 100
+  `).all(...params);
+}
+
+function combineItems(items) {
+  const map = new Map();
+  for (const it of (items || [])) {
+    const itemId = Number(it.item_id);
+    const qty = Number(it.qty);
+    if (!Number.isInteger(itemId) || itemId <= 0) throw new Error('منتج غير صالح في الطلبية');
+    if (!Number.isInteger(qty) || qty <= 0) throw new Error('الكمية يجب أن تكون عدداً صحيحاً أكبر من 0');
+    map.set(itemId, (map.get(itemId) || 0) + qty);
+  }
+  if (!map.size) throw new Error('الطلبية يجب أن تحتوي على منتج واحد على الأقل');
+  return [...map.entries()].map(([item_id, qty]) => ({ item_id, qty }));
+}
+
+function checkDiscount(discount, subtotal) {
+  const d = Number(discount) || 0;
+  if (!Number.isFinite(d) || d < 0) throw new Error('التخفيض يجب أن يكون 0 أو أكثر');
+  if (d > subtotal) throw new Error('التخفيض لا يمكن أن يتجاوز المجموع');
+  return d;
+}
+
+function validDeliveryDate(v) {
+  if (v === null || v === undefined || String(v).trim() === '') return null;
+  const s = String(v).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new Error('تاريخ التوصيل يجب أن يكون YYYY-MM-DD');
+  return s;
+}
+
+function getActiveCustomer(db, customerId) {
+  const c = db.prepare('SELECT id FROM customers WHERE id = ? AND deleted_at IS NULL').get(customerId);
+  if (!c) throw new Error('الزبون غير موجود أو محذوف');
+  return c;
+}
+
+function createOrder({ customer_id, delivery_date, notes, discount_amount, items }) {
+  const db = getDb();
+  const cid = Number(customer_id);
+  if (!Number.isInteger(cid) || cid <= 0) throw new Error('اختر الزبون');
+  getActiveCustomer(db, cid);
+  const combined = combineItems(items);
+  db.exec('BEGIN');
+  try {
+    let subtotal = 0;
+    const priced = combined.map(({ item_id, qty }) => {
+      const prod = db.prepare('SELECT id FROM items WHERE id = ?').get(item_id);
+      if (!prod) throw new Error('منتج غير موجود في المخزون');
+      const { price } = productPricing(item_id);
+      if (!(price > 0)) throw new Error('لا يوجد سعر بيع صالح لهذا المنتج — حدّث السعر في المخزون أولاً');
+      subtotal += qty * price;
+      return { item_id, qty, unit_price: price };
+    });
+    const discount = checkDiscount(discount_amount, subtotal);
+    const r = db.prepare(`
+      INSERT INTO orders (customer_id, delivery_date, status, discount_amount, notes)
+      VALUES (?, ?, 'draft', ?, ?)
+    `).run(cid, validDeliveryDate(delivery_date), discount, (notes || '').trim());
+    const orderId = Number(r.lastInsertRowid);
+    const ins = db.prepare('INSERT INTO order_items (order_id, item_id, qty, unit_price) VALUES (?, ?, ?, ?)');
+    for (const p of priced) ins.run(orderId, p.item_id, p.qty, p.unit_price);
+    db.exec('COMMIT');
+    return { id: orderId, reference: orderRef(orderId, cid) };
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+
+function getDraftOrder(db, id) {
+  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  if (!o) throw new Error('الطلبية غير موجودة');
+  if (o.status !== 'draft') throw new Error('لا يمكن تعديل طلبية غير مسودة');
+  return o;
+}
+
+// full replace of a draft order (customer, date, notes, discount, items)
+function updateDraftOrder({ id, customer_id, delivery_date, notes, discount_amount, items }) {
+  const db = getDb();
+  const o = getDraftOrder(db, id);
+  void o;
+  const cid = Number(customer_id);
+  if (!Number.isInteger(cid) || cid <= 0) throw new Error('اختر الزبون');
+  getActiveCustomer(db, cid);
+  const combined = combineItems(items);
+  db.exec('BEGIN');
+  try {
+    let subtotal = 0;
+    const priced = combined.map(({ item_id, qty }) => {
+      const prod = db.prepare('SELECT id FROM items WHERE id = ?').get(item_id);
+      if (!prod) throw new Error('منتج غير موجود في المخزون');
+      const { price } = productPricing(item_id);
+      if (!(price > 0)) throw new Error('لا يوجد سعر بيع صالح لهذا المنتج — حدّث السعر في المخزون أولاً');
+      subtotal += qty * price;
+      return { item_id, qty, unit_price: price };
+    });
+    const discount = checkDiscount(discount_amount, subtotal);
+    db.prepare(`UPDATE orders SET customer_id = ?, delivery_date = ?, discount_amount = ?, notes = ?, updated_at = datetime('now') WHERE id = ?`)
+      .run(cid, validDeliveryDate(delivery_date), discount, (notes || '').trim(), id);
+    db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
+    const ins = db.prepare('INSERT INTO order_items (order_id, item_id, qty, unit_price) VALUES (?, ?, ?, ?)');
+    for (const p of priced) ins.run(id, p.item_id, p.qty, p.unit_price);
+    db.exec('COMMIT');
+    return { id, reference: orderRef(id, cid) };
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+
+function orderTotals(order, items) {
+  const subtotal = items.reduce((a, i) => a + Number(i.qty) * Number(i.unit_price), 0);
+  const discount = Number(order.discount_amount) || 0;
+  return { subtotal, discount, total: subtotal - discount };
+}
+
+function stockWarnings(items) {
+  const db = getDb();
+  return items.map(i => {
+    const { stock } = productPricing(i.item_id);
+    return { item_id: i.item_id, qty: i.qty, stock, short: Number(i.qty) > Number(stock) };
+  }).filter(w => w.short);
+}
+
+function getOrder(id) {
+  const db = getDb();
+  const o = db.prepare(`
+    SELECT o.*, c.name AS customer_name, c.deleted_at AS customer_deleted,
+      d.name AS district_name
+    FROM orders o
+    JOIN customers c ON c.id = o.customer_id
+    LEFT JOIN districts d ON d.id = c.district_id
+    WHERE o.id = ?
+  `).get(id);
+  if (!o) return null;
+  o.reference = orderRef(o.id, o.customer_id);
+  o.items = db.prepare(`
+    SELECT oi.*, i.name AS item_name, i.barcode FROM order_items oi
+    JOIN items i ON i.id = oi.item_id
+    WHERE oi.order_id = ? ORDER BY oi.id
+  `).all(id);
+  const t = orderTotals(o, o.items);
+  o.subtotal = t.subtotal;
+  o.total = t.total;
+  o.warnings = stockWarnings(o.items);
+  return o;
+}
+
+function confirmOrder(id) {
+  const db = getDb();
+  const o = getDraftOrder(db, id);
+  const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(id);
+  if (!items.length) throw new Error('لا يمكن تأكيد طلبية فارغة');
+  getActiveCustomer(db, o.customer_id);
+  for (const i of items) {
+    if (!Number.isInteger(Number(i.qty)) || Number(i.qty) <= 0) throw new Error('كمية غير صالحة في الطلبية');
+    if (!(Number(i.unit_price) > 0)) throw new Error('سعر غير صالح في الطلبية');
+    if (!db.prepare('SELECT id FROM items WHERE id = ?').get(i.item_id)) throw new Error('منتج غير موجود في المخزون');
+  }
+  const t = orderTotals(o, items);
+  checkDiscount(o.discount_amount, t.subtotal);
+  if (t.total < 0) throw new Error('الإجمالي لا يمكن أن يكون سالباً');
+  db.prepare(`UPDATE orders SET status = 'confirmed', updated_at = datetime('now') WHERE id = ?`).run(id);
+  return { id, warnings: stockWarnings(items) };
+}
+
+function setOrderStatus(id, to) {
+  const db = getDb();
+  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  if (!o) throw new Error('الطلبية غير موجودة');
+  if (!ORDER_STATUSES.includes(to)) throw new Error('حالة غير صالحة');
+  if (!ORDER_TRANSITIONS[o.status].includes(to)) throw new Error(`لا يمكن الانتقال من ${o.status} إلى ${to}`);
+  db.prepare(`UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(to, id);
+  return { id, status: to };
+}
+
+function setDeliveryDate(id, deliveryDate) {
+  const db = getDb();
+  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  if (!o) throw new Error('الطلبية غير موجودة');
+  if (o.status === 'delivered' || o.status === 'cancelled') throw new Error('لا يمكن تغيير تاريخ طلبية مكتملة أو ملغاة');
+  db.prepare(`UPDATE orders SET delivery_date = ?, updated_at = datetime('now') WHERE id = ?`).run(validDeliveryDate(deliveryDate), id);
+  return { id };
+}
+
+function deleteOrder(id) {
+  const db = getDb();
+  const r = db.prepare('DELETE FROM orders WHERE id = ?').run(id);
+  if (r.changes === 0) throw new Error('الطلبية غير موجودة');
+  return { id };
+}
+
+// modes: 'id' | 'reference' | 'customer_id' | 'customer_name' | 'phone'
+function listOrders({ mode = 'id', query = '', status = null, districtId = null, customerId = null, deliveryDate = null, sort = 'newest' } = {}) {
+  const db = getDb();
+  const q = (query || '').trim();
+  let where = '1=1';
+  let params = [];
+  if (q !== '') {
+    if (mode === 'id') {
+      const n = parseInt(q, 10);
+      if (!Number.isFinite(n) || n <= 0) return [];
+      where = 'o.id = ?'; params = [n];
+    } else if (mode === 'reference') {
+      const m = q.match(/^C?\s*(\d+)\s*-\s*(\d+)$/i);
+      if (m) { where = '(o.id = ? AND o.customer_id = ?)'; params = [Number(m[2]), Number(m[1])]; }
+      else {
+        const n = parseInt(q, 10);
+        if (!Number.isFinite(n) || n <= 0) return [];
+        where = 'o.id = ?'; params = [n];
+      }
+    } else if (mode === 'customer_id') {
+      const n = parseInt(q, 10);
+      if (!Number.isFinite(n) || n <= 0) return [];
+      where = 'o.customer_id = ?'; params = [n];
+    } else if (mode === 'phone') {
+      where = `EXISTS (SELECT 1 FROM customer_phones p WHERE p.customer_id = o.customer_id AND p.phone_number LIKE ?)`;
+      params = [`%${q}%`];
+    } else {
+      where = 'c.name LIKE ?'; params = [`%${q}%`];
+    }
+  }
+  const orderBy = sort === 'oldest' ? 'o.id ASC' : 'o.id DESC';
+  // status 'active' = confirmed + waiting + out_for_delivery (quick-filter group)
+  let statusCond = '(? IS NULL OR o.status = ?)';
+  let statusParams = [status, status];
+  if (status === 'active') {
+    statusCond = `o.status IN ('confirmed','waiting','out_for_delivery')`;
+    statusParams = [];
+  }
+  return db.prepare(`
+    SELECT o.id, o.customer_id, c.name AS customer_name, d.name AS district_name,
+      o.delivery_date, o.status, o.discount_amount, o.created_at,
+      COALESCE((SELECT SUM(qty * unit_price) FROM order_items WHERE order_id = o.id), 0) AS subtotal,
+      COALESCE((SELECT SUM(qty * unit_price) FROM order_items WHERE order_id = o.id), 0) - o.discount_amount AS total,
+      (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS item_count
+    FROM orders o
+    JOIN customers c ON c.id = o.customer_id
+    LEFT JOIN districts d ON d.id = c.district_id
+    WHERE ${where}
+      AND ${statusCond}
+      AND (? IS NULL OR c.district_id = ?)
+      AND (? IS NULL OR o.customer_id = ?)
+      AND (? IS NULL OR o.delivery_date = ?)
+    ORDER BY ${orderBy}
+    LIMIT 500
+  `).all(...params, ...statusParams, districtId, districtId, customerId, customerId, deliveryDate, deliveryDate)
+    .map(r => ({ ...r, reference: orderRef(r.id, r.customer_id) }));
+}
+
+function listCustomerOrders(customerId) {
+  const db = getDb();
+  return db.prepare(`
+    SELECT o.id, o.delivery_date, o.status, o.discount_amount, o.created_at,
+      COALESCE((SELECT SUM(qty * unit_price) FROM order_items WHERE order_id = o.id), 0) AS subtotal,
+      COALESCE((SELECT SUM(qty * unit_price) FROM order_items WHERE order_id = o.id), 0) - o.discount_amount AS total,
+      (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS item_count
+    FROM orders o WHERE o.customer_id = ? ORDER BY o.id DESC LIMIT 200
+  `).all(customerId).map(r => ({ ...r, reference: orderRef(r.id, customerId) }));
+}
+
+module.exports = { init, addItem, listItems, addShipment, listShipments, listShipmentsDetailed, getOverview, listCategories, addCategory, listCompanies, addCompany, listDistricts, addDistrict, addCustomer, listCustomers, getCustomer, updateCustomer, deleteCustomer, restoreCustomer, addCustomerPhone, deleteCustomerPhone, findPhoneOwners, ORDER_STATUSES, ORDER_TRANSITIONS, orderRef, productPricing, listProductsForOrder, createOrder, updateDraftOrder, getOrder, confirmOrder, setOrderStatus, setDeliveryDate, deleteOrder, listOrders, listCustomerOrders };

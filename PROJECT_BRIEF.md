@@ -151,3 +151,25 @@ Sidebar `👥 الزبائن` is live. Self-contained `modules/customers/` (html
 - Create/update wrapped in `BEGIN/COMMIT/ROLLBACK` so customer+phones stay consistent.
 - Detail modal reserves a `futurebox` slot for order/payment history (not implemented).
 - IPC: `districts:list/add`, `customers:list/get/add/update/delete/restore`, `customers:phones:add/delete/check`.
+
+---
+
+## 18. Phase B — Orders (implemented)
+
+Sidebar `🧾 الطلبيات` is live. Self-contained `modules/orders/` (html/css/js, IIFE + `mount`, `window.OrdersModule.openDetail`). Reuses global classes; `.ord .cards` scoped to 4 columns so Inventory's grid is untouched.
+
+### Schema
+- `orders(id AUTOINCREMENT, customer_id→customers, delivery_date TEXT YYYY-MM-DD NULL, status DEFAULT 'draft', discount_amount REAL DEFAULT 0, notes, created_at, updated_at)` — no `delivery_shipment_id`, no payment/scout/tax fields. Customer FK is non-cascading: deleting a customer never deletes orders.
+- `order_items(id AUTOINCREMENT, order_id CASCADE, item_id→items, qty INT>0, unit_price REAL>0, created_at)`.
+- Statuses: draft→confirmed→waiting→out_for_delivery→delivered, plus cancelled from any pre-delivery state. Terminal states never reopen. `AUTOINCREMENT` keeps deleted IDs consumed forever.
+
+### Business rules
+- One order = one customer (never merged). Reference `C{id}-{oid}` computed, never stored.
+- No editable order date; `created_at` only. Delivery date independently changeable until delivered/cancelled.
+- Empty orders rejected; duplicate product lines auto-combined (UI + API); integer qty only.
+- Price = highest receipt `sell_price` snapshotted into `unit_price`; zero-price products blocked with warning. Inventory `addShipment` now synchronizes all receipts of a product to the new max sell price (old orders keep their snapshot).
+- No stock reservation/deduction on create/confirm — only yellow warnings. `discount 0<=d<=subtotal`, hidden in receipt when 0. All DA, no tax.
+- Delete = physical (IDs stay consumed); cancel = status. Delivered/cancelled read-only.
+- Search modes: id / reference (`C17-1042` parsed) / customer id / customer name / phone; filters: exact status + `active` group, date, district (via customer), newest/oldest sort. All server-side with joins.
+- Builder reuses `CustomersModule.openCreate(cb)` (customer modals moved to `document.body` so the popup works from Orders); detail links to customer card; customer card shows live order history (replaces old placeholder box).
+- IPC: `orders:list/get/create/update-draft/confirm/set-status/set-delivery-date/delete/customer-list`, `inventory:product-pricing/products-search`.
