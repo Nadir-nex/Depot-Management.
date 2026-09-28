@@ -1,0 +1,120 @@
+<div class="stf">
+  <div class="stf-head">
+    <div>
+      <h1>الموظفون والمركبات</h1>
+      <p class="muted">هويات تشغيلية للمرحلة القادمة (التوصيل) — بدون إسناد دائم بين سائق ومركبة</p>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="s-tab-emp">الموظفون</button>
+    <button class="tab-btn" id="s-tab-veh">المركبات</button>
+  </div>
+
+  <!-- Employees pane -->
+  <div id="s-pane-emp">
+    <div class="toolbar">
+      <div class="seg" id="s-emp-modes">
+        <button class="seg-btn" data-mode="id">الرقم</button>
+        <button class="seg-btn active" data-mode="name">الاسم</button>
+        <button class="seg-btn" data-mode="phone">الهاتف</button>
+      </div>
+      <input id="s-emp-search" type="text" placeholder="ابحث باسم الموظف…" />
+      <button id="s-emp-deleted" class="btn ghost">المحذوفون</button>
+      <button id="s-btn-add-emp" class="btn primary">＋ موظف جديد</button>
+      <button id="s-emp-refresh" class="btn ghost">تحديث</button>
+    </div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>الرقم</th>
+            <th>الاسم</th>
+            <th>الأدوار</th>
+            <th>الهاتف</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="s-emp-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Vehicles pane -->
+  <div id="s-pane-veh" class="hidden">
+    <div class="toolbar">
+      <div class="seg" id="s-veh-modes">
+        <button class="seg-btn" data-mode="id">الرقم</button>
+        <button class="seg-btn active" data-mode="name">الاسم</button>
+        <button class="seg-btn" data-mode="plate">اللوحة</button>
+      </div>
+      <input id="s-veh-search" type="text" placeholder="ابحث باسم المركبة…" />
+      <button id="s-veh-deleted" class="btn ghost">المحذوفون</button>
+      <button id="s-btn-add-veh" class="btn primary">＋ مركبة جديدة</button>
+      <button id="s-veh-refresh" class="btn ghost">تحديث</button>
+    </div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>الرقم</th>
+            <th>الاسم</th>
+            <th>اللوحة</th>
+            <th>التوفر</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="s-veh-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Employee modal -->
+  <div id="s-modal-emp" class="modal hidden">
+    <div class="modal-box wide">
+      <h3 id="s-emp-title">موظف جديد</h3>
+      <div class="c-idline hidden" id="s-emp-idline">رقم الموظف: <strong id="s-emp-id"></strong></div>
+      <label>اسم الموظف<input id="s-e-name" placeholder="مثلا: أحمد…" /></label>
+      <div class="c-label">الأدوار</div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="s-e-role-collector" /> جمع الطلبات</label>
+        <label class="check"><input type="checkbox" id="s-e-role-driver" /> سائق</label>
+      </div>
+      <div class="c-label">أرقام الهاتف</div>
+      <div id="s-e-phones"></div>
+      <div class="row">
+        <input id="s-e-newphone" placeholder="مثلا: 0555123456…" dir="ltr" />
+        <button id="s-e-addphone" class="btn cyan">＋ هاتف</button>
+      </div>
+      <label>ملاحظات<textarea id="s-e-notes" rows="3" placeholder="مثلا: يعمل صباحا فقط…"></textarea></label>
+      <div class="c-meta hidden" id="s-e-meta"></div>
+      <div class="row">
+        <button id="s-e-save" class="btn primary">حفظ</button>
+        <button id="s-e-delete" class="btn danger hidden">حذف الموظف</button>
+        <button id="s-e-restore" class="btn primary hidden">استعادة الموظف</button>
+        <button class="btn ghost close-modal" data-close="s-modal-emp">إغلاق</button>
+      </div>
+      <p class="err" id="s-e-err"></p>
+    </div>
+  </div>
+
+  <!-- Vehicle modal -->
+  <div id="s-modal-veh" class="modal hidden">
+    <div class="modal-box">
+      <h3 id="s-veh-title">مركبة جديدة</h3>
+      <div class="c-idline hidden" id="s-veh-idline">رقم المركبة: <strong id="s-veh-id"></strong></div>
+      <label>اسم المركبة<input id="s-v-name" placeholder="مثلا: الشاحنة الكبيرة…" /></label>
+      <label>رقم اللوحة (اختياري)<input id="s-v-plate" placeholder="مثلا: 12345-16…" dir="ltr" /></label>
+      <label class="check"><input type="checkbox" id="s-v-available" checked /> متوفرة للعمل</label>
+      <label>ملاحظات<textarea id="s-v-notes" rows="3" placeholder="مثلا: …"></textarea></label>
+      <div class="c-meta hidden" id="s-v-meta"></div>
+      <div class="row">
+        <button id="s-v-save" class="btn primary">حفظ</button>
+        <button id="s-v-delete" class="btn danger hidden">حذف المركبة</button>
+        <button id="s-v-restore" class="btn primary hidden">استعادة المركبة</button>
+        <button class="btn ghost close-modal" data-close="s-modal-veh">إغلاق</button>
+      </div>
+      <p class="err" id="s-v-err"></p>
+    </div>
+  </div>
+</div>

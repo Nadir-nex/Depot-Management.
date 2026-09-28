@@ -1,0 +1,15 @@
+.stf h1 { margin: 0; font-size: 35px; }
+.stf-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
+
+.tabs { display: flex; gap: 14px; margin-bottom: 19px; }
+.tab-btn {
+  border: 1px solid var(--cyan-100); background: #fff; color: var(--cyan-700);
+  border-radius: 14px; padding: 15px 40px; font-size: 22px; font-weight: 800; cursor: pointer;
+}
+.tab-btn.active { background: linear-gradient(135deg, var(--cyan-500), var(--cyan-600)); color: #fff; border-color: transparent; }
+
+.check { display: flex !important; align-items: center; gap: 10px; font-size: 20px !important; cursor: pointer; }
+.check input[type="checkbox"] { width: 30px; height: 30px; accent-color: var(--cyan-600); }
+
+.avail-ok { background: #e8f5e9; color: #2e7d32; }
+.avail-no { background: #ffebee; color: #c62828; }

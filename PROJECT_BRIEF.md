@@ -173,3 +173,43 @@ Sidebar `🧾 الطلبيات` is live. Self-contained `modules/orders/` (html/
 - Search modes: id / reference (`C17-1042` parsed) / customer id / customer name / phone; filters: exact status + `active` group, date, district (via customer), newest/oldest sort. All server-side with joins.
 - Builder reuses `CustomersModule.openCreate(cb)` (customer modals moved to `document.body` so the popup works from Orders); detail links to customer card; customer card shows live order history (replaces old placeholder box).
 - IPC: `orders:list/get/create/update-draft/confirm/set-status/set-delivery-date/delete/customer-list`, `inventory:product-pricing/products-search`.
+
+---
+
+## 19. Phase C — Staff & Vehicles (implemented)
+
+Sidebar `👷 الموظفون والمركبات` is live: one module, two tabs `[ الموظفون ] [ المركبات ]`. Self-contained `modules/staff/` (html/css/js, IIFE + `mount`, `window.StaffModule`). Reuses global classes; new scoped styles only (`.tabs`, `.tab-btn`, `.check`, availability pills).
+
+### Schema
+- `employees(id AUTOINCREMENT, name, notes, deleted_at, created_at, updated_at)` — no HR fields.
+- `employee_phones(id, employee_id CASCADE, phone_number, created_at)` — unlimited, not globally unique.
+- `employee_roles(employee_id CASCADE, role, PK(employee_id, role))` — values hard-coded: `collector` (جمع الطلبات) / `driver` (سائق). No permissions framework.
+- `vehicles(id AUTOINCREMENT, name, plate_number '' default, notes, is_available 1 default, deleted_at, created_at, updated_at)` — no type column by explicit requirement.
+- No `employee.truck_id` / `vehicle.driver_id` — driver↔vehicle pairing is per-Delivery (Phase D), never permanent.
+- Soft delete + restore for both; history preserved by ID; transactions on multi-row writes.
+
+### APIs
+- Employees: `list/get/add/update/delete/restore`, `phones:add/delete`, `roles:set` (replace set), `by-role` (driver/collector lookup for future Delivery selection).
+- Vehicles: `list/get/add/update/delete/restore`, `set-availability`.
+- Search modes mirror prior modules (employees: id/name/phone; vehicles: id/name/plate); deleted toggle per tab; role pills show Arabic labels, never raw codes.
+
+---
+
+## 20. Phase D — Delivery / شحنة التوصيل (implemented)
+
+Sidebar `🚚 شحنة التوصيل` is live; `💰 الدفعات` button removed (no payments module/tables). Self-contained `modules/deliveries/` (html/css/js, IIFE + `mount`, `window.DeliveryModule.openDetail`). Scoped CSS only (`.dlv-*`, `.stop`, `.dorder-row`); status pills reuse orders `.st-*` classes.
+
+### Schema
+- `deliveries(id AUTOINCREMENT, district_id NULL (planning hint), driver_id→employees RESTRICT, vehicle_id→vehicles RESTRICT, delivery_date NOT NULL, status planned/in_progress/completed, started_at, completed_at, hidden_at, timestamps)`.
+- `delivery_stops(id AUTOINCREMENT, delivery_id CASCADE, customer_id RESTRICT, sequence>0, UNIQUE(delivery_id, customer_id))` — customer-level stops, sequence = physical order + future route data.
+- `delivery_orders(id AUTOINCREMENT, delivery_id CASCADE, stop_id CASCADE, order_id RESTRICT, delivered_at NULL, removed_at NULL, UNIQUE(delivery_id, order_id))`.
+- `PRAGMA foreign_keys = ON` enabled in `init()` (previously unenforced); deleting an order linked to delivery history now fails with an Arabic error instead of silently breaking history.
+
+### Orders compatibility (§2 correction)
+- `orders.delivery_date` = actual date only, NULL until delivered. Builder date input removed, detail change-date button removed, list/detail now label it التوصيل الفعلي. `createOrder` forces NULL; `updateDraftOrder` no longer touches it; direct `delivered` transition stamps `COALESCE(delivery_date, date('now'))`; cancelling auto-detaches active delivery memberships (history rows kept).
+
+### Behaviors
+- Create: date + optional district + driver (driver-role only) + available vehicle + eligible orders (confirmed/waiting, unassigned; same-customer suggestions); same-customer orders auto-group into one stop; empty/draft/cancelled/delivered/duplicate rejected transactionally.
+- Lifecycle planned→in_progress (started_at + non-blocking stock preflight)→completed (completed_at); planning editable only before start (incl. ↑↓ reorder); per-order تسليم sets `delivered_at` + order delivered + actual date; post-launch removal preserves row with `removed_at`; planned deletes physically, started hides via `hidden_at`.
+- Stock-aware only: preflight compares need + other committed demand vs physical SUM; no allocation/deduction (deferred engine).
+- IPC: `deliveries:list/get/create/update/start/complete/hide/delete/add-order/remove-order/deliver-order/reorder-stops/eligible-orders/stock-check`.

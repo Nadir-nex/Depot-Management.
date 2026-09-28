@@ -82,3 +82,23 @@ html, body {
   text-align: center;
   color: var(--muted);
 }
+
+#toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 16px 30px;
+  border-radius: 14px;
+  font-size: 20px;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+  z-index: 100;
+  max-width: 80vw;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.ok { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+#toast.info { background: var(--cyan-50); color: var(--cyan-700); border: 1px solid var(--cyan-100); }
+#toast.err { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }

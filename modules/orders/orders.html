@@ -35,7 +35,7 @@
       <option value="cancelled">ملغاة</option>
     </select>
     <select id="o-filter-district"><option value="">كل المناطق</option></select>
-    <input id="o-filter-date" type="date" dir="ltr" title="تاريخ التوصيل" />
+    <input id="o-filter-date" type="date" dir="ltr" title="تاريخ التوصيل الفعلي" />
     <button id="o-btn-sort" class="btn ghost" title="ترتيب">الأحدث ↓</button>
     <button id="o-btn-refresh" class="btn ghost">تحديث</button>
   </div>
@@ -53,7 +53,7 @@
           <th>الزبون</th>
           <th>المنطقة</th>
           <th>أُنشئت</th>
-          <th>التوصيل</th>
+          <th>التوصيل الفعلي</th>
           <th>الإجمالي</th>
           <th>الحالة</th>
           <th></th>
@@ -76,8 +76,7 @@
       </div>
       <div id="o-customer-results"></div>
 
-      <div class="grid2">
-        <label>تاريخ التوصيل<input id="o-f-delivery" type="date" dir="ltr" /></label>
+      <div>
         <label>ملاحظات الطلبية<textarea id="o-f-notes" rows="2" placeholder="مثلا: أضف 5 قارورات إضافية هذه المرة…"></textarea></label>
       </div>
 

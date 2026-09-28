@@ -14,7 +14,7 @@
   let oMode = 'id';
   let oSort = 'newest';
   let oCard = 'all'; // all | draft | active | done
-  let builder = null; // {editId, customer, items[], discount, delivery, notes}
+  let builder = null; // {editId, customer, items[], discount, notes}
   let pMode = 'name';
 
   async function ensureTemplate(root) {
@@ -92,7 +92,7 @@
 
   // ---------- builder ----------
   function newBuilder(editId = null) {
-    builder = { editId, customer: null, items: [], discount: 0, delivery: '', notes: '' };
+    builder = { editId, customer: null, items: [], discount: 0, notes: '' };
   }
 
   function builderTotals() {
@@ -185,7 +185,6 @@
     document.getElementById('o-customer-results').innerHTML = '';
     document.getElementById('o-product-search').value = '';
     document.getElementById('o-product-results').innerHTML = '';
-    document.getElementById('o-f-delivery').value = '';
     document.getElementById('o-f-notes').value = '';
     document.getElementById('o-f-discount').value = 0;
     document.getElementById('o-err').textContent = '';
@@ -205,10 +204,8 @@
       try { const pr = await window.api.getProductPricing(it.item_id); it.stock = pr.stock; } catch {}
     }
     builder.discount = o.discount_amount || 0;
-    builder.delivery = o.delivery_date || '';
     builder.notes = o.notes || '';
     document.getElementById('o-modal-title').textContent = `تعديل المسودة #${id}`;
-    document.getElementById('o-f-delivery').value = builder.delivery;
     document.getElementById('o-f-notes').value = builder.notes;
     document.getElementById('o-f-discount').value = builder.discount;
     document.getElementById('o-err').textContent = '';
@@ -227,7 +224,6 @@
     if (!builder.items.length) { err.textContent = 'الطلبية يجب أن تحتوي على منتج واحد على الأقل'; return; }
     const payload = {
       customer_id: builder.customer.id,
-      delivery_date: document.getElementById('o-f-delivery').value || null,
       notes: document.getElementById('o-f-notes').value,
       discount_amount: Number(document.getElementById('o-f-discount').value) || 0,
       items: builder.items.map(i => ({ item_id: i.item_id, qty: i.qty }))
@@ -256,7 +252,7 @@
         <div class="ref" dir="ltr">C${o.customer_id}-${o.id}${o.customer_deleted ? ' — الزبون محذوف' : ''}</div>
         <div>الزبون: <strong>${escapeHtml(o.customer_name)}</strong> (رقم ${o.customer_id}) <button class="link" data-gocust="${o.customer_id}">عرض الزبون</button></div>
         <div>المنطقة: ${escapeHtml(o.district_name || '—')}</div>
-        <div>أُنشئت: ${escapeHtml((o.created_at || '').slice(0, 16))} — التوصيل: ${escapeHtml(o.delivery_date || '—')}</div>
+        <div>أُنشئت: ${escapeHtml((o.created_at || '').slice(0, 16))} — التوصيل الفعلي: ${escapeHtml(o.delivery_date || '—')}</div>
         <div style="margin:6px 0">الحالة: ${statusPill(o.status)}</div>
         <table>${lines}</table>
         <div>المجموع: ${o.subtotal} DA</div>
@@ -289,14 +285,6 @@
       addBtn('إلغاء الطلبية', 'ghost', async () => {
         if (!window.confirm('إلغاء الطلبية؟ تبقى في السجل.')) return;
         try { await window.api.setOrderStatus(o.id, 'cancelled'); close('o-modal-detail'); refresh(); }
-        catch (e) { document.getElementById('o-detail-err').textContent = e.message; }
-      });
-    }
-    if (!['delivered', 'cancelled'].includes(o.status)) {
-      addBtn('تغيير التوصيل', 'cyan', async () => {
-        const d = window.prompt('تاريخ التوصيل الجديد (YYYY-MM-DD):', o.delivery_date || '');
-        if (d === null) return;
-        try { await window.api.setOrderDeliveryDate(o.id, d); openDetail(o.id); refresh(); }
         catch (e) { document.getElementById('o-detail-err').textContent = e.message; }
       });
     }
