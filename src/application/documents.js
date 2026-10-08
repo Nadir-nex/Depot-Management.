@@ -21,6 +21,7 @@ const { createPackRepository } = require('../data/catalogRepository');
 const { createLotRepository } = require('../data/lotRepository');
 const { createPartyRepository, createPartyRoleRepository } = require('../data/partyRepository');
 const { createWarehouseRepository, createAuditRepository } = require('../data/stockRepository');
+const { requireOpenPeriod, generateAccountingEventsForPostedDocument } = require('./fiscal');
 const { createDocumentRepository, createDocumentLineRepository } = require('../data/documentRepository');
 const { withTransaction, utcNowIso } = require('../db');
 
@@ -304,8 +305,13 @@ function postDocument(db, id, actorOrAuth = 'system', opts = {}) {
       warehouseName: warehouse ? warehouse.name : '',
     };
     docs.setSnapshot(id, snap);
+    // Fiscal period check (before committing)
+    requireOpenPeriod(db, fresh.docDate);
     const updated = docs.setStatus(id, 'posted', { postedAt: utcNowIso() });
     createAuditRepository(db).append({ actor: auth.actor, operation: 'document.post', entityType: 'document', entityId: id, details: `grand=${totals.grandTotal}`, after: `status=posted grand=${totals.grandTotal}`, referenceNo: updated.docNo });
+    // Generate accounting events for posted documents (sales invoices, etc.)
+    const fiscalApp = require('./fiscal');
+    fiscalApp.generateAccountingEventsForPostedDocument(db, updated, auth.actor);
     return getDocument(db, id);
   });
 }

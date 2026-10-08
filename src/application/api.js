@@ -27,6 +27,7 @@ const settlementsApp = require('./settlements');
 const paymentsApp = require('./payments');
 const expensesApp = require('./expenses');
 const reportingApp = require('./reporting');
+const fiscalApp = require('./fiscal');
 const countsApp = require('./counts');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
@@ -128,6 +129,9 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       approveCount: (id, auth) => countsApp.approveCount(db, id, auth),
       postCount: (id, auth) => countsApp.postCount(db, id, auth),
       cancelCount: (id, reason, auth) => countsApp.cancelCount(db, id, reason, auth),
+      // Fiscal
+      openFiscalYear: (input, auth) => fiscalApp.openFiscalYear(db, input, auth),
+      closeFiscalYear: (id, auth) => fiscalApp.closeFiscalYear(db, id, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -185,6 +189,11 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       getStopSettlement: (stopId) => settlementsApp.getStopSettlement(db, stopId),
       routeReconciliation: (routeId) => settlementsApp.routeReconciliation(db, routeId),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
+      // Fiscal
+      listFiscalYears: (opts) => fiscalApp.listFiscalYears(db, opts || {}),
+      listAccountingEvents: (fiscalYearId, opts) => fiscalApp.listAccountingEvents(db, fiscalYearId, opts || {}),
+      getAccountingEvent: (id) => fiscalApp.getAccountingEvent(db, id),
+      getJournalLines: (accountingEventId) => fiscalApp.getJournalLines(db, accountingEventId),
     },
   };
 }

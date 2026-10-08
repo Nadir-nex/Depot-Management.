@@ -47,6 +47,10 @@ function createCashAccountRepository(db) {
       ).get(id).flow;
       return opening + flow;
     },
+    getAccountName(id) {
+      const r = db.prepare('SELECT name FROM cash_accounts WHERE id = ?').get(id);
+      return r ? { code: '53', name: r.name } : { code: '53', name: 'Cash' };
+    },
   };
 }
 

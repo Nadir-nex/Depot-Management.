@@ -19,14 +19,14 @@ describe('migrations', () => {
     const db = openDatabase(dbPath);
     try {
       const out = migrate(db, { dbPath, backup: false });
-      assert.deepEqual(out.ran, ['001_core.sql', '002_stock.sql', '003_audit_fields.sql', '004_product_master.sql', '005_catalog_units.sql', '006_pricing.sql', '007_warehouses.sql', '008_stock_engine.sql', '009_lots.sql', '010_parties.sql', '011_documents.sql', '012_sales.sql', '013_purchases.sql', '014_returns.sql', '015_payments.sql', '016_expenses.sql', '017_counts.sql', '018_logistics.sql', '019_loading.sql', '020_route_settlements.sql', '021_import.sql', '022_document_snapshots.sql']);
+      assert.deepEqual(out.ran, ['001_core.sql', '002_stock.sql', '003_audit_fields.sql', '004_product_master.sql', '005_catalog_units.sql', '006_pricing.sql', '007_warehouses.sql', '008_stock_engine.sql', '009_lots.sql', '010_parties.sql', '011_documents.sql', '012_sales.sql', '013_purchases.sql', '014_returns.sql', '015_payments.sql', '016_expenses.sql', '017_counts.sql', '018_logistics.sql', '019_loading.sql', '020_route_settlements.sql', '021_import.sql', '022_document_snapshots.sql', '023_fiscal_accounting.sql']);
       const tables = new Set(db.prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table'"
       ).all().map((r) => r.name));
       for (const t of ['schema_migrations', 'warehouses', 'products', 'purchase_receipts', 'purchase_receipt_lines', 'stock_movements', 'audit_log']) {
         assert.ok(tables.has(t), `missing table ${t}`);
       }
-      assert.equal(appliedVersions(db).size, 22);
+      assert.equal(appliedVersions(db).size, 23);
     } finally {
       db.close();
     }
@@ -77,7 +77,7 @@ describe('migrations', () => {
       });
       const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='__probe'").all();
       assert.equal(tables.length, 0);
-      assert.equal(appliedVersions(db).size, 22);
+      assert.equal(appliedVersions(db).size, 23);
     } finally {
       db.close();
     }

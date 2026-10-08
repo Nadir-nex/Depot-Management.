@@ -175,4 +175,11 @@ contextBridge.exposeInMainWorld('depotApi', {
   getAdjustmentsReport: (opts) => call('reports:adjustments', opts),
   getDiscrepanciesReport: (opts) => call('reports:discrepancies', opts),
   getDailyCashPosition: (opts) => call('reports:daily-cash-position', opts),
+  // Fiscal
+  openFiscalYear: (input, actor) => call('fiscal:open', input, actor),
+  closeFiscalYear: (id, actor) => call('fiscal:close', id, actor),
+  listFiscalYears: (opts) => call('fiscal:list', opts),
+  listAccountingEvents: (fiscalYearId, opts) => call('fiscal:events', fiscalYearId, opts),
+  getAccountingEvent: (id) => call('fiscal:event-get', id),
+  getJournalLines: (accountingEventId) => call('fiscal:event-lines', accountingEventId),
 });

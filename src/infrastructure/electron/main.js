@@ -196,6 +196,13 @@ function registerIpc() {
     'reports:adjustments': ([opts]) => appApi.queries.getAdjustmentsReport(opts),
     'reports:discrepancies': ([opts]) => appApi.queries.getDiscrepanciesReport(opts),
     'reports:daily-cash-position': ([opts]) => appApi.queries.getDailyCashPosition(opts),
+    // Fiscal
+    'fiscal:open': ([input, actor]) => appApi.commands.openFiscalYear(input, serverAuth(actor)),
+    'fiscal:close': ([id, actor]) => appApi.commands.closeFiscalYear(id, serverAuth(actor)),
+    'fiscal:list': ([opts]) => appApi.queries.listFiscalYears(opts),
+    'fiscal:events': ([fiscalYearId, opts]) => appApi.queries.listAccountingEvents(fiscalYearId, opts),
+    'fiscal:event-get': ([id]) => appApi.queries.getAccountingEvent(id),
+    'fiscal:event-lines': ([accountingEventId]) => appApi.queries.getJournalLines(accountingEventId),
   };
   for (const [channel, handler] of Object.entries(routes)) {
     ipcMain.handle(channel, async (_event, ...args) => {

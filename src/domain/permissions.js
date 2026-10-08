@@ -35,6 +35,7 @@ const PERMISSIONS = Object.freeze({
   'deliveries.create': Object.freeze({ description: 'Create deliveries/routes (reserved)', enforced: 'P19' }),
   'deliveries.complete': Object.freeze({ description: 'Complete deliveries (reserved)', enforced: 'P19' }),
   'reports.view': Object.freeze({ description: 'View reports (reserved)', enforced: 'P24' }),
+  'fiscal.manage': Object.freeze({ description: 'Open/close fiscal years, manage accounting', enforced: 'P25' }),
   'admin.backup': Object.freeze({ description: 'Backup database (reserved)', enforced: 'P28' }),
   'admin.restore': Object.freeze({ description: 'Restore database (reserved)', enforced: 'P28' }),
 });
