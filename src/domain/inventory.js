@@ -3,14 +3,13 @@
 // nothing outside this module (and its application services) decides why
 // stock changed. UI must never write quantities directly.
 const { ValidationError, StateError } = require('./errors');
+// Canonical enums live in ./vocabulary (single source); re-exported here so
+// existing import sites keep working without a competing definition.
+const { MOVEMENT_TYPES: _MOVEMENT_VALUES, RECEIPT_STATUSES: _RECEIPT_VALUES } = require('./vocabulary');
 
-const MOVEMENT_TYPES = Object.freeze([
-  'purchase_receipt',
-  'purchase_receipt_reversal',
-  'adjustment',
-]);
+const MOVEMENT_TYPES = Object.freeze(Object.values(_MOVEMENT_VALUES));
 const REVERSIBLE_RECEIPT_TYPES = Object.freeze(['purchase_receipt']);
-const RECEIPT_STATUSES = Object.freeze(['posted', 'cancelled']);
+const RECEIPT_STATUSES = Object.freeze(Object.values(_RECEIPT_VALUES));
 
 function validateMovementType(t) {
   if (!MOVEMENT_TYPES.includes(t)) throw new ValidationError(`unknown movement type: ${t}`);
