@@ -12,6 +12,7 @@ const { withTransaction } = require('../db');
 const productsApp = require('./products');
 const inventoryApp = require('./inventory');
 const catalogApp = require('./catalog');
+const pricingApp = require('./pricing');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -41,6 +42,11 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       createPack: (productId, input, auth) => catalogApp.createPack(db, productId, input, auth),
       addBarcode: (productId, input, auth) => catalogApp.addBarcode(db, productId, input, auth),
       removeBarcode: (id, auth) => catalogApp.removeBarcode(db, id, auth),
+      createPriceList: (input, auth) => pricingApp.createPriceList(db, input, auth),
+      updatePriceList: (id, fields, auth) => pricingApp.updatePriceList(db, id, fields, auth),
+      deletePriceList: (id, auth) => pricingApp.deletePriceList(db, id, auth),
+      setPriceLine: (listId, input, auth) => pricingApp.setPriceLine(db, listId, input, auth),
+      removePriceLine: (listId, input, auth) => pricingApp.removePriceLine(db, listId, input, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -62,6 +68,9 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       listPacks: (productId) => catalogApp.listPacks(db, productId),
       listBarcodes: (productId) => catalogApp.listBarcodes(db, productId),
       resolveBarcode: (code) => catalogApp.resolveBarcode(db, code),
+      listPriceLists: () => pricingApp.listPriceLists(db),
+      getPriceList: (id) => pricingApp.getPriceList(db, id),
+      resolveSalePrice: (args) => pricingApp.resolveSalePrice(db, args),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };

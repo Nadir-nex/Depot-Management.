@@ -89,6 +89,27 @@ const TAX_CLASSES = freezeValues({
   EXEMPT: 'exempt',
 });
 
+// --- Pricing (P07 owns tariffs; the resolver contract is frozen here) ---
+// Resolution hierarchy (most specific wins; documented + tested in P07):
+//   line-override → customer-product → tariff-product → general-tariff → product-default
+// Within ONE list a pack line beats the base-product line. Between lists of
+// equal specificity: higher priority wins, then lowest id. Always deterministic.
+const PRICE_SOURCES = freezeValues({
+  LINE_OVERRIDE: 'line-override',
+  CUSTOMER_PRODUCT: 'customer-product',
+  TARIFF_PRODUCT: 'tariff-product',
+  GENERAL_TARIFF: 'general-tariff',
+  PRODUCT_DEFAULT: 'product-default',
+});
+
+// Tariff scopes. customer_type/customer keys are plain codes until P11 owns
+// parties — the resolver matches them as strings, no FKs, no behavior change.
+const LIST_SCOPES = freezeValues({
+  GENERAL: 'general',
+  CUSTOMER_TYPE: 'customer_type',
+  CUSTOMER: 'customer',
+});
+
 // --- Money: integer minor units, one currency until P16 says otherwise ---
 const MONEY = Object.freeze({
   CURRENCY: 'DZD',
@@ -175,6 +196,8 @@ module.exports = {
   RECEIPT_STATUSES,
   PRODUCT_TYPES,
   TAX_CLASSES,
+  PRICE_SOURCES,
+  LIST_SCOPES,
   MONEY,
   TIME,
   CORE_CONCEPTS,

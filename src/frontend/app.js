@@ -48,10 +48,10 @@
       const stock = await unwrap(api.listStock('MAIN'));
       const rows = stock.rows || stock;
       stockBody.innerHTML = rows.length
-        ? rows.map((r) => `<tr><td>${escapeHtml(r.sku)}</td><td>${escapeHtml(r.name)}</td><td>${r.stock}</td></tr>`).join('')
-        : '<tr><td colspan="3">لا يوجد مخزون بعد.</td></tr>';
+        ? rows.map((r) => `<tr><td>${escapeHtml(r.sku)}</td><td>${escapeHtml(r.name)}</td><td>${r.stock}</td><td>${r.default_sale_price}</td></tr>`).join('')
+        : '<tr><td colspan="4">لا يوجد مخزون بعد.</td></tr>';
     } catch (e) {
-      stockBody.innerHTML = `<tr><td colspan="3">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+      stockBody.innerHTML = `<tr><td colspan="4">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
     }
     try {
       const receipts = await unwrap(api.listReceipts({}));

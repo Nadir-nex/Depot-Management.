@@ -47,7 +47,7 @@ function createStockRepository(db) {
     },
     stockByProduct(warehouseId) {
       return db.prepare(
-        `SELECT p.id AS product_id, p.sku, p.name, COALESCE(SUM(m.qty), 0) AS stock
+        `SELECT p.id AS product_id, p.sku, p.name, p.default_sale_price, COALESCE(SUM(m.qty), 0) AS stock
            FROM products p LEFT JOIN stock_movements m
              ON m.product_id = p.id AND m.warehouse_id = ?
           GROUP BY p.id ORDER BY p.name`
