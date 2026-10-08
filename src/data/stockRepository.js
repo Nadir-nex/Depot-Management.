@@ -1,13 +1,14 @@
 'use strict';
 // Warehouse + stock-movement + receipt + audit repositories. Raw SQL only.
 const { NotFoundError } = require('../domain/errors');
+const { utcNowIso } = require('../db');
 
 function createWarehouseRepository(db) {
   return {
     ensureMain() {
       const existing = db.prepare("SELECT * FROM warehouses WHERE code = 'MAIN'").get();
       if (existing) return existing;
-      const now = new Date().toISOString();
+      const now = utcNowIso();
       const info = db.prepare(
         'INSERT INTO warehouses (code, name, created_at, updated_at) VALUES (?, ?, ?, ?)'
       ).run('MAIN', 'Main depot', now, now);
@@ -34,7 +35,7 @@ function createStockRepository(db) {
         `INSERT INTO stock_movements
            (product_id, warehouse_id, qty, movement_type, reference_type, reference_id, unit_cost, notes, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(productId, warehouseId, qty, movementType, referenceType, referenceId, unitCost, notes, new Date().toISOString());
+      ).run(productId, warehouseId, qty, movementType, referenceType, referenceId, unitCost, notes, utcNowIso());
       return Number(info.lastInsertRowid);
     },
     stockOf(productId, warehouseId) {
@@ -65,7 +66,7 @@ function createStockRepository(db) {
 function createReceiptRepository(db) {
   return {
     insertReceipt({ receiptNo, warehouseId, supplierName, postedAt }) {
-      const now = new Date().toISOString();
+      const now = utcNowIso();
       const info = db.prepare(
         `INSERT INTO purchase_receipts
            (receipt_no, warehouse_id, supplier_name, status, posted_at, created_at, updated_at)
@@ -92,7 +93,7 @@ function createReceiptRepository(db) {
       return { ...receipt, lines: this.linesOf(id) };
     },
     markCancelled(id, reason) {
-      const now = new Date().toISOString();
+      const now = utcNowIso();
       const info = db.prepare(
         "UPDATE purchase_receipts SET status = 'cancelled', cancelled_at = ?, cancel_reason = ?, updated_at = ? WHERE id = ? AND status = 'posted'"
       ).run(now, reason, now, id);
@@ -119,7 +120,7 @@ function createAuditRepository(db) {
     append({ actor = 'system', operation, entityType, entityId = null, details = '' }) {
       db.prepare(
         'INSERT INTO audit_log (occurred_at, actor, operation, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(new Date().toISOString(), actor, operation, entityType, entityId, details);
+      ).run(utcNowIso(), actor, operation, entityType, entityId, details);
     },
     recent({ limit = 100 } = {}) {
       return db.prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?').all(limit);

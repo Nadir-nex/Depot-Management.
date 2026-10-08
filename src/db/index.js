@@ -7,13 +7,20 @@ const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
 const path = require('node:path');
 
-function openDatabase(dbPath) {
+// Single timestamp choke point. Storage convention (vocabulary TIME):
+// TEXT ISO-8601 UTC with millis. Repositories must call this instead of
+// inventing their own date formatting.
+function utcNowIso() {
+  return new Date().toISOString();
+}
+
+function openDatabase(dbPath, { busyTimeoutMs = 5000 } = {}) {
   if (dbPath !== ':memory:') {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   }
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec('PRAGMA busy_timeout = 5000');
+  db.exec(`PRAGMA busy_timeout = ${Math.max(0, Number(busyTimeoutMs) || 0)}`);
   if (dbPath !== ':memory:') {
     try { db.exec("PRAGMA journal_mode = WAL"); } catch { /* keep default journal mode */ }
   }
@@ -50,4 +57,4 @@ function integrityCheck(db) {
   };
 }
 
-module.exports = { openDatabase, closeDatabase, withTransaction, integrityCheck };
+module.exports = { openDatabase, closeDatabase, withTransaction, integrityCheck, utcNowIso };

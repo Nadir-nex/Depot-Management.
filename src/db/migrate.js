@@ -7,6 +7,7 @@
 // UNIQUE / INDEX only. Journal mode, WAL, pragmas live in src/db/index.js.
 const fs = require('node:fs');
 const path = require('node:path');
+const { utcNowIso } = require('./index');
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
@@ -26,16 +27,12 @@ function appliedVersions(db) {
   return new Set(db.prepare('SELECT version FROM schema_migrations').all().map((r) => r.version));
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 // Copies dbPath to dbPath.pre-migrate-<ts>.bak before applying anything.
 // Skipped for :memory: databases. Returns backup path or null.
 function backupBeforeMigrate(dbPath) {
   if (!dbPath || dbPath === ':memory:') return null;
   if (!fs.existsSync(dbPath)) return null;
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const stamp = utcNowIso().replace(/[:.]/g, '-');
   const backupPath = `${dbPath}.pre-migrate-${stamp}.bak`;
   fs.copyFileSync(dbPath, backupPath);
   return backupPath;
@@ -45,7 +42,7 @@ function applyMigrationFile(db, version, sql) {
   db.exec('BEGIN IMMEDIATE');
   try {
     db.exec(sql);
-    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(version, nowIso());
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(version, utcNowIso());
     db.exec('COMMIT');
   } catch (err) {
     try { db.exec('ROLLBACK'); } catch { /* ignore */ }
@@ -54,9 +51,9 @@ function applyMigrationFile(db, version, sql) {
   }
 }
 
-function migrate(db, { dbPath = null, backup = true } = {}) {
+function migrate(db, { dbPath = null, backup = true, migrationsDir = MIGRATIONS_DIR } = {}) {
   const applied = appliedVersions(db);
-  const files = listMigrationFiles();
+  const files = listMigrationFiles(migrationsDir);
   const pending = files.filter((f) => !applied.has(f));
   let backupPath = null;
   // Back up only when upgrading a database that already has migrations applied.
@@ -64,7 +61,7 @@ function migrate(db, { dbPath = null, backup = true } = {}) {
   if (pending.length > 0 && applied.size > 0 && backup) backupPath = backupBeforeMigrate(dbPath);
   const ran = [];
   for (const file of pending) {
-    const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
+    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
     applyMigrationFile(db, file, sql);
     ran.push(file);
   }

@@ -2,6 +2,7 @@
 // Product repository — the ONLY place that queries the products table.
 // Takes an open db handle; contains zero business decisions beyond persistence.
 const { NotFoundError } = require('../domain/errors');
+const { utcNowIso } = require('../db');
 
 function toRow(r) {
   if (!r) return null;
@@ -21,7 +22,7 @@ function toRow(r) {
 function createProductRepository(db) {
   return {
     insert({ sku, name, barcode, isActive, defaultUnitCost, notes }) {
-      const now = new Date().toISOString();
+      const now = utcNowIso();
       const info = db.prepare(
         `INSERT INTO products (sku, name, barcode, is_active, default_unit_cost, notes, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
@@ -46,7 +47,7 @@ function createProductRepository(db) {
       return db.prepare(`SELECT * FROM products ${where} ORDER BY name LIMIT ? OFFSET ?`).all(...params, limit, offset).map(toRow);
     },
     setActive(id, active) {
-      const now = new Date().toISOString();
+      const now = utcNowIso();
       const info = db.prepare('UPDATE products SET is_active = ?, updated_at = ? WHERE id = ?').run(active ? 1 : 0, now, id);
       if (info.changes === 0) throw new NotFoundError(`product ${id} not found`);
       return this.getById(id);

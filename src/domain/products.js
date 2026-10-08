@@ -2,6 +2,7 @@
 // Pure product validation. No DB, no Electron, no filesystem.
 // Money (default_unit_cost) is integer minor units (centimes) >= 0.
 const { ValidationError } = require('./errors');
+const { assertMinorUnits } = require('./money');
 
 const SKU_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
@@ -39,9 +40,7 @@ function validateUnitCost(cost) {
     cost = Number(cost.trim());
   }
   if (!Number.isInteger(cost)) throw new ValidationError('unit cost must be an integer in minor units');
-  if (cost < 0) throw new ValidationError('unit cost cannot be negative');
-  if (cost > 1_000_000_000) throw new ValidationError('unit cost is unreasonably large');
-  return cost;
+  return assertMinorUnits(cost);
 }
 
 function toProductInput(raw = {}) {

@@ -14,7 +14,7 @@ const {
   createReceiptRepository,
   createAuditRepository,
 } = require('../data/stockRepository');
-const { withTransaction } = require('../db');
+const { withTransaction, utcNowIso } = require('../db');
 
 function cleanText(v) {
   return typeof v === 'string' ? v.trim() : '';
@@ -44,7 +44,7 @@ function buildReceiptNo(receipts, requested) {
     if (r.length > 64) throw new ValidationError('receipt_no must be at most 64 characters');
     return r;
   }
-  const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const day = utcNowIso().slice(0, 10).replace(/-/g, '');
   const prefix = `RCPT-${day}-`;
   const seq = String(receipts.nextDailySequence(prefix)).padStart(4, '0');
   return `${prefix}${seq}`;
