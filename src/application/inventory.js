@@ -4,7 +4,7 @@
 // not at all. Posted history is never edited: cancellation appends reversal
 // movements and flips the receipt status. No Electron, no fs, no SQL here
 // beyond the repository calls (repositories own the SQL).
-const { ValidationError, NotFoundError, StateError } = require('../domain/errors');
+const { ValidationError, NotFoundError, StateError, ConflictError } = require('../domain/errors');
 const { normalizeAuth, requirePermission } = require('../domain/permissions');
 const { MAIN_WAREHOUSE_CODE } = require('../domain/vocabulary');
 const { validateReceiptLines, assertReceiptCancellable, reversalOf } = require('../domain/inventory');
@@ -21,6 +21,7 @@ const {
   createReceiptRepository,
   createAuditRepository,
 } = require('../data/stockRepository');
+const { tryClaimOperationKey } = require('./idempotency');
 const { withTransaction, utcNowIso } = require('../db');
 
 function cleanText(v) {
@@ -152,6 +153,14 @@ function assertOrderRemaining(db, order, resolved) {
 function receiveStock(db, payload = {}, actorOrAuth = 'system') {
   const auth = requirePermission(normalizeAuth(actorOrAuth), 'purchases.post');
   const lines = validateReceiptLines(payload.lines);
+  // Idempotency: if operationKey provided, claim it
+  if (payload.operationKey) {
+    const claim = tryClaimOperationKey(db, 'receive_stock', payload.operationKey);
+    if (!claim.claimed) {
+      const existing = claim.existing;
+      throw new ConflictError(`duplicate receive_stock operation: key already used at ${existing.created_at} for entity ${existing.entity_id}`);
+    }
+  }
   let supplierName = cleanText(payload.supplierName ?? payload.supplier_name).slice(0, 200);
   let supplierParty = resolveSupplierParty(db, payload);
   const order = resolvePurchaseOrder(db, payload);

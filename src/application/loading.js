@@ -4,11 +4,12 @@
 // cancellation release leftovers. Delivery posting (sales.js) enforces
 // availability net of other routes' claims, so physical logistics and
 // database stock cannot silently diverge — with zero additional movements.
-const { StateError, ValidationError } = require('../domain/errors');
+const { StateError, ValidationError, ConflictError } = require('../domain/errors');
 const { normalizeAuth, requirePermission } = require('../domain/permissions');
 const { createProductRepository } = require('../data/productRepository');
 const { createLotRepository } = require('../data/lotRepository');
 const { createWarehouseRepository, createStockRepository, createAuditRepository } = require('../data/stockRepository');
+const { tryClaimOperationKey } = require('./idempotency');
 const { createRouteRepository, createRouteStopRepository } = require('../data/logisticsRepository');
 const { createReservationRepository } = require('../data/loadingRepository');
 const { createDocumentRepository, createDocumentLineRepository } = require('../data/documentRepository');
@@ -60,6 +61,14 @@ function reserveStock(db, routeId, raw = {}, actorOrAuth = 'system') {
   const qty = raw.qty;
   if (!Number.isInteger(qty) || qty <= 0) throw new ValidationError('reserve qty must be a positive integer');
   if (qty > 1_000_000_000) throw new ValidationError('reserve qty is unreasonably large');
+  // Idempotency
+  if (raw.operationKey) {
+    const claim = tryClaimOperationKey(db, 'reserve_stock', raw.operationKey, { entityId: routeId, entityType: 'route' });
+    if (!claim.claimed) {
+      const existing = claim.existing;
+      throw new ConflictError(`duplicate reserve_stock operation: key already used at ${existing.created_at} for entity ${existing.entity_id}`);
+    }
+  }
   return withTransaction(db, () => {
     const route = resolveRouteForPlanning(db, routeId);
     const product = resolveStorableProduct(db, raw);
@@ -78,6 +87,11 @@ function reserveStock(db, routeId, raw = {}, actorOrAuth = 'system') {
     }
     const row = createReservationRepository(db).insert({ routeId: route.id, productId: product.id, warehouseId: warehouse.id, lotId, qty });
     createAuditRepository(db).append({ actor: auth.actor, operation: 'stock.reserve', entityType: 'route', entityId: route.id, details: `sku=${product.sku} qty=${qty} free-was=${free}`, referenceNo: route.route_no });
+    // If idempotency key was used, update with entity_id
+    if (raw.operationKey) {
+      db.prepare('UPDATE operation_keys SET entity_id = ?, entity_type = ? WHERE operation_type = ? AND operation_key = ?')
+        .run(row.id, 'route_reservation', 'reserve_stock', raw.operationKey);
+    }
     return row;
   });
 }

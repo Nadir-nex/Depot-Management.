@@ -4,7 +4,7 @@
 // Completion is rule-gated (crew assigned, no pending stops, outcome mix
 // matches the target state, failures always reasoned); collected amounts are
 // recorded CLAIMS, settled in P21 — never confused with payments.
-const { NotFoundError, StateError, ValidationError } = require('../domain/errors');
+const { NotFoundError, StateError, ValidationError, ConflictError } = require('../domain/errors');
 const { normalizeAuth, requirePermission } = require('../domain/permissions');
 const { ROUTE_TRANSITIONS } = require('../domain/vocabulary');
 const {
@@ -27,6 +27,7 @@ const {
 const { checkRouteCoverage, releaseReservations } = require('./loading');
 const { ensureStopSettlement } = require('./settlements');
 const { createAuditRepository } = require('../data/stockRepository');
+const { tryClaimOperationKey } = require('./idempotency');
 const { withTransaction, utcNowIso } = require('../db');
 
 function cleanText(v) {
@@ -256,6 +257,14 @@ function dispatchRoute(db, routeId, actorOrAuth = 'system') {
 
 function completeStop(db, stopId, raw = {}, actorOrAuth = 'system') {
   const auth = requirePermission(normalizeAuth(actorOrAuth), 'deliveries.complete');
+  // Idempotency
+  if (raw.operationKey) {
+    const claim = tryClaimOperationKey(db, 'complete_stop', raw.operationKey, { entityId: stopId, entityType: 'route_stop' });
+    if (!claim.claimed) {
+      const existing = claim.existing;
+      throw new ConflictError(`duplicate complete_stop operation: key already used at ${existing.created_at} for entity ${existing.entity_id}`);
+    }
+  }
   return withTransaction(db, () => {
     const stops = createRouteStopRepository(db);
     const stop = stops.getById(stopId);
@@ -269,6 +278,11 @@ function completeStop(db, stopId, raw = {}, actorOrAuth = 'system') {
     // Cash taken at handover becomes an open settlement claim (P21).
     ensureStopSettlement(db, row);
     createAuditRepository(db).append({ actor: auth.actor, operation: 'route.stop_complete', entityType: 'route', entityId: route.id, details: `stop=${stop.stop_no} collected=${row.collected_amount}`, referenceNo: route.route_no });
+    // If idempotency key was used, update with entity_id
+    if (raw.operationKey) {
+      db.prepare('UPDATE operation_keys SET entity_id = ?, entity_type = ? WHERE operation_type = ? AND operation_key = ?')
+        .run(row.id, 'route_stop', 'complete_stop', raw.operationKey);
+    }
     return row;
   });
 }

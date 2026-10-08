@@ -21,6 +21,7 @@ const { createReservationRepository } = require('../data/loadingRepository');
 const { createRouteStopRepository } = require('../data/logisticsRepository');
 const { createDocumentLineRepository } = require('../data/documentRepository');
 const documentsApp = require('./documents');
+const { tryClaimOperationKey, IDEMPOTENCY_TYPES } = require('./idempotency');
 const { withTransaction } = require('../db');
 
 function cleanText(v) {
@@ -216,22 +217,42 @@ function fulfillDelivery(db, delivery, lines, serialsByLine, actorName) {
   }
 }
 
-function postDeliveryNote(db, id, { serialsByLine = {}, actor = 'system' } = {}) {
-  const auth = normalizeAuth(actor);
+function postDeliveryNote(db, id, opts = {}, actorOrAuth = 'system') {
+  const { serialsByLine = {}, operationKey = null } = opts;
+  const auth = normalizeAuth(actorOrAuth);
   const current = documentsApp.getDocument(db, id);
   if (current.docType !== 'delivery_note') throw new ValidationError('postDeliveryNote handles delivery notes only');
+  // Idempotency
+  if (operationKey) {
+    const claim = tryClaimOperationKey(db, 'post_delivery', operationKey, { entityId: id, entityType: 'document' });
+    if (!claim.claimed) {
+      const existing = claim.existing;
+      throw new ConflictError(`duplicate post_delivery operation: key already used at ${existing.created_at} for entity ${existing.entity_id}`);
+    }
+  }
   return documentsApp.postDocument(db, id, auth, {
+      operationKey: operationKey,
     postEffects: (txDb, delivery, lines) => fulfillDelivery(txDb, delivery, lines, serialsByLine, auth.actor),
   });
 }
 
 // Invoice posting guard: sourced lines cannot exceed their delivery lines'
 // remaining quantities (recomputed here, inside the posting transaction).
-function postInvoice(db, id, actorOrAuth = 'system') {
+function postInvoice(db, id, opts = {}, actorOrAuth = 'system') {
   const auth = normalizeAuth(actorOrAuth);
+  const operationKey = opts.operationKey ?? null;
   const current = documentsApp.getDocument(db, id);
   if (current.docType !== 'sales_invoice') throw new ValidationError('postInvoice handles sales invoices only');
+  // Idempotency
+  if (operationKey) {
+    const claim = tryClaimOperationKey(db, 'post_invoice', operationKey, { entityId: id, entityType: 'document' });
+    if (!claim.claimed) {
+      const existing = claim.existing;
+      throw new ConflictError(`duplicate post_invoice operation: key already used at ${existing.created_at} for entity ${existing.entity_id}`);
+    }
+  }
   return documentsApp.postDocument(db, id, auth, {
+      operationKey: operationKey,
     postEffects: (txDb) => {
       const lines = createDocumentLineRepository(txDb).ofDocument(id);
       for (const line of lines) {

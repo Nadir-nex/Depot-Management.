@@ -30,6 +30,7 @@ const {
 const { createDocumentRepository } = require('../data/documentRepository');
 const { createReceiptRepository, createAuditRepository } = require('../data/stockRepository');
 const { withTransaction, utcNowIso } = require('../db');
+const { tryClaimOperationKey } = require('./idempotency');
 
 function cleanText(v) {
   return typeof v === 'string' ? v.trim() : '';
@@ -104,6 +105,14 @@ function refreshInvoiceStatus(db, invoiceId, actor) {
 
 function recordPayment(db, raw = {}, actorOrAuth = 'system') {
   const auth = requirePermission(normalizeAuth(actorOrAuth), 'payments.record');
+  // Idempotency
+  if (raw.operationKey) {
+    const claim = tryClaimOperationKey(db, 'record_payment', raw.operationKey);
+    if (!claim.claimed) {
+      const existing = claim.existing;
+      throw new ConflictError(`duplicate record_payment operation: key already used at ${existing.created_at} for entity ${existing.entity_id}`);
+    }
+  }
   const direction = validateDirection(raw.direction);
   const method = validateMethod(raw.method);
   const amount = validatePaymentAmount(raw.amount);

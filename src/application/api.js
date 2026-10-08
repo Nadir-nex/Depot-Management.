@@ -90,7 +90,7 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       convertDocument: (sourceId, targetType, opts, auth) => salesApp.convertDocument(db, sourceId, targetType, { ...(opts || {}), actor: auth }),
       convertDeliveriesToInvoice: (ids, opts, auth) => salesApp.convertDeliveriesToInvoice(db, ids, { ...(opts || {}), actor: auth }),
       postDeliveryNote: (id, opts, auth) => salesApp.postDeliveryNote(db, id, { ...(opts || {}), actor: auth }),
-      postInvoice: (id, auth) => salesApp.postInvoice(db, id, auth),
+      postInvoice: (id, opts, auth) => salesApp.postInvoice(db, id, { ...(opts || {}), actor: auth }),
       recordSupplierInvoice: (id, input, auth) => purchasesApp.recordSupplierInvoice(db, id, input, auth),
       createCustomerReturn: (deliveryId, input, auth) => returnsApp.createCustomerReturn(db, deliveryId, input, auth),
       postCustomerReturn: (id, input, auth) => returnsApp.postCustomerReturn(db, id, input, auth),
