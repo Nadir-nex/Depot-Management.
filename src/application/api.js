@@ -26,6 +26,7 @@ const loadingApp = require('./loading');
 const settlementsApp = require('./settlements');
 const paymentsApp = require('./payments');
 const expensesApp = require('./expenses');
+const reportingApp = require('./reporting');
 const countsApp = require('./counts');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
