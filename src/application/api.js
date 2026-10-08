@@ -21,6 +21,7 @@ const documentsApp = require('./documents');
 const salesApp = require('./sales');
 const purchasesApp = require('./purchases');
 const returnsApp = require('./returns');
+const logisticsApp = require('./logistics');
 const paymentsApp = require('./payments');
 const expensesApp = require('./expenses');
 const countsApp = require('./counts');
@@ -90,6 +91,20 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       createCustomerReturn: (deliveryId, input, auth) => returnsApp.createCustomerReturn(db, deliveryId, input, auth),
       postCustomerReturn: (id, input, auth) => returnsApp.postCustomerReturn(db, id, input, auth),
       returnToSupplier: (input, auth) => returnsApp.returnToSupplier(db, input, auth),
+      createDriver: (input, auth) => logisticsApp.createDriver(db, input, auth),
+      setDriverActive: (id, active, auth) => logisticsApp.setDriverActive(db, id, active, auth),
+      createVehicle: (input, auth) => logisticsApp.createVehicle(db, input, auth),
+      setVehicleActive: (id, active, auth) => logisticsApp.setVehicleActive(db, id, active, auth),
+      createRoute: (input, auth) => logisticsApp.createRoute(db, input, auth),
+      assignRoute: (id, input, auth) => logisticsApp.assignRoute(db, id, input, auth),
+      addStop: (routeId, input, auth) => logisticsApp.addStop(db, routeId, input, auth),
+      removeStop: (id, auth) => logisticsApp.removeStop(db, id, auth),
+      loadRoute: (id, auth) => logisticsApp.loadRoute(db, id, auth),
+      dispatchRoute: (id, auth) => logisticsApp.dispatchRoute(db, id, auth),
+      completeStop: (id, input, auth) => logisticsApp.completeStop(db, id, input, auth),
+      failStop: (id, input, auth) => logisticsApp.failStop(db, id, input, auth),
+      completeRoute: (id, to, auth) => logisticsApp.completeRoute(db, id, to, auth),
+      cancelRoute: (id, reason, auth) => logisticsApp.cancelRoute(db, id, reason, auth),
       recordPayment: (input, auth) => paymentsApp.recordPayment(db, input, auth),
       reversePayment: (id, reason, auth) => paymentsApp.reversePayment(db, id, reason, auth),
       createCashAccount: (input, auth) => paymentsApp.createCashAccount(db, input, auth),
@@ -155,6 +170,10 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       expenseReport: (opts) => expensesApp.expenseReport(db, opts),
       listCounts: (opts) => countsApp.listCounts(db, opts),
       getCount: (id) => countsApp.getCount(db, id),
+      listDrivers: () => logisticsApp.listDrivers(db),
+      listVehicles: () => logisticsApp.listVehicles(db),
+      listRoutes: (opts) => logisticsApp.listRoutes(db, opts),
+      getRoute: (id) => logisticsApp.getRoute(db, id),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };

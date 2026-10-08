@@ -50,6 +50,21 @@
       submitCount: (id) => post('counts:submit', { id }),
       approveCount: (id) => post('counts:approve', { id }),
       postCount: (id) => post('counts:post', { id }),
+      listDrivers: () => post('drivers:list', {}),
+      createDriver: (input) => post('drivers:create', { input }),
+      listVehicles: () => post('vehicles:list', {}),
+      createVehicle: (input) => post('vehicles:create', { input }),
+      listRoutes: () => post('routes:list', {}),
+      getRoute: (id) => post('routes:get', { id }),
+      createRoute: (input) => post('routes:create', { input }),
+      assignRoute: (id, input) => post('routes:assign', { id, input }),
+      addStop: (routeId, input) => post('routes:stop-add', { routeId, input }),
+      loadRoute: (id) => post('routes:load', { id }),
+      dispatchRoute: (id) => post('routes:dispatch', { id }),
+      completeStop: (id, input) => post('routes:stop-complete', { id, input }),
+      failStop: (id, input) => post('routes:stop-fail', { id, input }),
+      completeRoute: (id, to) => post('routes:complete', { id, to }),
+      cancelRoute: (id, reason) => post('routes:cancel', { id, reason }),
     };
   }
 
@@ -76,6 +91,7 @@
     await refreshPayments();
     await refreshExpenses();
     await refreshCounts();
+    await refreshRoutes();
     const stockWh = document.getElementById('stock-warehouse');
     const warehouse = stockWh && stockWh.value ? stockWh.value : 'MAIN';
     const stockBody = document.getElementById('stock-body');
@@ -351,6 +367,171 @@
       refresh();
     } catch (err) {
       show(msg, false, `فشل التسجيل: ${err.message}`);
+    }
+  });
+
+  let selectedRouteId = null;
+
+  function routeActionFor(status) {
+    if (status === 'planned') return [{ a: 'load', l: 'تحميل' }, { a: 'cancel', l: 'إلغاء' }];
+    if (status === 'loaded') return [{ a: 'dispatch', l: 'انطلاق' }, { a: 'cancel', l: 'إلغاء' }];
+    if (status === 'out_for_delivery') return [{ a: 'delivered', l: 'تم التوصيل' }, { a: 'partial', l: 'جزئي' }, { a: 'failed', l: 'فشل' }];
+    return [];
+  }
+
+  async function refreshRoutes() {
+    const body = document.getElementById('routes-body');
+    if (!body || typeof api.listRoutes !== 'function') return;
+    try {
+      const rows = await unwrap(api.listRoutes({}));
+      body.innerHTML = rows.length
+        ? rows.slice(0, 20).map((r) => {
+            const acts = routeActionFor(r.status).map((a) => `<button data-route-action="${a.a}" data-id="${r.id}">${a.l}</button>`).join(' ');
+            return `<tr><td><button data-route-select="${r.id}">${escapeHtml(r.route_no)}</button></td><td>${escapeHtml(r.route_date)}</td><td>${escapeHtml(r.status)}</td><td>${r.id === selectedRouteId ? '◀' : ''}</td><td>${acts || '—'}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="5">لا توجد طرق بعد.</td></tr>';
+      if (selectedRouteId) await showRouteDetail(selectedRouteId);
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="5">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  async function fillCrewSelects(route) {
+    const drivers = await unwrap(api.listDrivers());
+    const vehicles = await unwrap(api.listVehicles());
+    const dsel = document.getElementById('assign-driver');
+    const vsel = document.getElementById('assign-vehicle');
+    dsel.innerHTML = '<option value="">—</option>' + drivers.filter((d) => d.is_active !== 0).map((d) => `<option value="${d.id}">${escapeHtml(d.code)}</option>`).join('');
+    vsel.innerHTML = '<option value="">—</option>' + vehicles.filter((v) => v.is_active !== 0).map((v) => `<option value="${v.id}">${escapeHtml(v.code)}</option>`).join('');
+    if (route.driver_id) dsel.value = route.driver_id;
+    if (route.vehicle_id) vsel.value = route.vehicle_id;
+  }
+
+  async function showRouteDetail(id) {
+    const panel = document.getElementById('route-detail');
+    const full = await unwrap(api.getRoute(id));
+    panel.style.display = 'block';
+    document.getElementById('route-title').textContent = `الطريق ${full.route_no} (${full.status})`;
+    await fillCrewSelects(full);
+    document.getElementById('stops-body').innerHTML = full.stops.length
+      ? full.stops.map((s) => {
+          const act = s.status === 'pending'
+            ? `<button data-stop-done="${s.id}">تم</button> <button data-stop-fail="${s.id}">فشل</button>`
+            : '—';
+          return `<tr><td>${s.stop_no}</td><td>${escapeHtml(s.party_name || s.party_code)}</td><td>${s.delivery_doc_id || '—'}</td><td>${escapeHtml(s.status)}</td><td>${s.collected_amount}</td><td>${act}</td></tr>`;
+        }).join('')
+      : '<tr><td colspan="6">لا توجد توقفات.</td></tr>';
+  }
+
+  async function routeAct(action, id) {
+    if (action === 'load') await unwrap(api.loadRoute(id));
+    else if (action === 'dispatch') await unwrap(api.dispatchRoute(id));
+    else if (action === 'cancel') await unwrap(api.cancelRoute(id, 'cancelled from UI'));
+    else await unwrap(api.completeRoute(id, action));
+    refresh();
+  }
+
+  document.getElementById('routes-body').addEventListener('click', async (e) => {
+    const msg = document.getElementById('route-msg');
+    try {
+      const sel = e.target.closest('[data-route-select]');
+      if (sel) { selectedRouteId = Number(sel.dataset.routeSelect); await showRouteDetail(selectedRouteId); refresh(); return; }
+      const btn = e.target.closest('[data-route-action]');
+      if (!btn) return;
+      await routeAct(btn.dataset.routeAction, Number(btn.dataset.id));
+      show(msg, true, 'تمت العملية بنجاح.');
+    } catch (err) {
+      show(msg, false, `فشلت العملية: ${err.message}`);
+    }
+  });
+
+  document.getElementById('stops-body').addEventListener('click', async (e) => {
+    const msg = document.getElementById('route-msg');
+    try {
+      const done = e.target.closest('[data-stop-done]');
+      const fail = e.target.closest('[data-stop-fail]');
+      if (done) await unwrap(api.completeStop(Number(done.dataset.stopDone), {}));
+      else if (fail) {
+        const reason = prompt('سبب الفشل (customer_absent/refused/wrong_address/vehicle_issue/other):', 'customer_absent');
+        if (!reason) return;
+        await unwrap(api.failStop(Number(fail.dataset.stopFail), { reason }));
+      } else return;
+      show(msg, true, 'تمت العملية بنجاح.');
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشلت العملية: ${err.message}`);
+    }
+  });
+
+  document.getElementById('crew-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('route-msg');
+    const fd = new FormData(e.target);
+    try {
+      const driverName = String(fd.get('driverName') || '').trim();
+      const vehicleCode = String(fd.get('vehicleCode') || '').trim();
+      if (driverName) {
+        const code = 'DRV-' + driverName.slice(0, 8).replace(/\s+/g, '').toUpperCase();
+        await unwrap(api.createDriver({ code, name: driverName }));
+      }
+      if (vehicleCode) await unwrap(api.createVehicle({ code: vehicleCode }));
+      show(msg, true, 'تمت إضافة الطاقم.');
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل: ${err.message}`);
+    }
+  });
+
+  document.getElementById('route-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('route-msg');
+    const fd = new FormData(e.target);
+    try {
+      const created = await unwrap(api.createRoute({ routeDate: String(fd.get('routeDate') || '').trim() || undefined }));
+      selectedRouteId = created.id;
+      show(msg, true, `أنشئ الطريق ${created.route_no}.`);
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل الإنشاء: ${err.message}`);
+    }
+  });
+
+  document.getElementById('assign-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('route-msg');
+    try {
+      if (!selectedRouteId) throw new Error('select a route first');
+      const driverId = document.getElementById('assign-driver').value;
+      const vehicleId = document.getElementById('assign-vehicle').value;
+      await unwrap(api.assignRoute(selectedRouteId, {
+        driverId: driverId ? Number(driverId) : null,
+        vehicleId: vehicleId ? Number(vehicleId) : null,
+      }));
+      show(msg, true, 'تم التعيين.');
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل التعيين: ${err.message}`);
+    }
+  });
+
+  document.getElementById('stop-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('route-msg');
+    const fd = new FormData(e.target);
+    try {
+      if (!selectedRouteId) throw new Error('select a route first');
+      const docRaw = String(fd.get('deliveryDocId') || '').trim();
+      await unwrap(api.addStop(selectedRouteId, {
+        partyCode: String(fd.get('partyCode') || '').trim(),
+        deliveryDocId: docRaw ? Number(docRaw) : null,
+      }));
+      show(msg, true, 'أضيف التوقف.');
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشلت الإضافة: ${err.message}`);
     }
   });
 

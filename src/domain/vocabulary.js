@@ -160,6 +160,42 @@ const PAYMENT_DIRECTIONS = freezeValues({
   OUT: 'out',
 });
 
+// --- Logistics (P19 owns routes; returns stay document-level by design) ---
+const ROUTE_STATUSES = freezeValues({
+  PLANNED: 'planned',
+  LOADED: 'loaded',
+  OUT_FOR_DELIVERY: 'out_for_delivery',
+  DELIVERED: 'delivered',
+  PARTIAL: 'partial',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled',
+});
+
+const ROUTE_TRANSITIONS = Object.freeze({
+  planned: Object.freeze(['loaded', 'cancelled']),
+  loaded: Object.freeze(['out_for_delivery', 'cancelled']),
+  out_for_delivery: Object.freeze(['delivered', 'partial', 'failed']),
+  delivered: Object.freeze([]),
+  partial: Object.freeze([]),
+  failed: Object.freeze([]),
+  cancelled: Object.freeze([]),
+});
+
+const ROUTE_STOP_STATUSES = freezeValues({
+  PENDING: 'pending',
+  DELIVERED: 'delivered',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled',
+});
+
+const STOP_FAIL_REASONS = freezeValues({
+  CUSTOMER_ABSENT: 'customer_absent',
+  REFUSED: 'refused',
+  WRONG_ADDRESS: 'wrong_address',
+  VEHICLE_ISSUE: 'vehicle_issue',
+  OTHER: 'other',
+});
+
 // --- Money: integer minor units, one currency until P16 says otherwise ---
 const MONEY = Object.freeze({
   CURRENCY: 'DZD',
@@ -248,6 +284,10 @@ module.exports = {
   SERIAL_STATUSES,
   PAYMENT_METHODS,
   PAYMENT_DIRECTIONS,
+  ROUTE_STATUSES,
+  ROUTE_TRANSITIONS,
+  ROUTE_STOP_STATUSES,
+  STOP_FAIL_REASONS,
   RECEIPT_STATUSES,
   PRODUCT_TYPES,
   TAX_CLASSES,

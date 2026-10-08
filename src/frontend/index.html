@@ -138,6 +138,40 @@
         <div class="msg" id="countline-msg"></div>
       </section>
       <section class="card wide">
+        <h2>التوصيل (طرق وشاحنات)</h2>
+        <form id="crew-form">
+          <label>سائق جديد (الاسم)<input name="driverName" maxlength="100" /></label>
+          <label>شاحنة جديدة (الرمز)<input name="vehicleCode" maxlength="16" /></label>
+          <button type="submit">إضافة طاقم</button>
+        </form>
+        <form id="route-form">
+          <label>تاريخ الطريق<input name="routeDate" placeholder="YYYY-MM-DD" /></label>
+          <button type="submit">إنشاء طريق</button>
+        </form>
+        <div class="msg" id="route-msg"></div>
+        <table>
+          <thead><tr><th>الرقم</th><th>التاريخ</th><th>الحالة</th><th>التوقفات</th><th>إجراء</th></tr></thead>
+          <tbody id="routes-body"><tr><td colspan="5">…</td></tr></tbody>
+        </table>
+        <div id="route-detail" style="display:none">
+          <h3 id="route-title"></h3>
+          <form id="assign-form">
+            <label>السائق<select id="assign-driver"></select></label>
+            <label>الشاحنة<select id="assign-vehicle"></select></label>
+            <button type="submit">تعيين الطاقم</button>
+          </form>
+          <form id="stop-form">
+            <label>رمز الزبون<input name="partyCode" required /></label>
+            <label>سند التوصيل (ID، اختياري)<input name="deliveryDocId" inputmode="numeric" /></label>
+            <button type="submit">إضافة توقف</button>
+          </form>
+          <table>
+            <thead><tr><th>#</th><th>الزبون</th><th>السند</th><th>الحالة</th><th>المحصّل</th><th>إجراء</th></tr></thead>
+            <tbody id="stops-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="card wide">
         <h2>المتعاملون (زبائن / مورّدون)</h2>
         <form id="party-form">
           <label>الاسم<input name="displayName" required maxlength="200" /></label>
