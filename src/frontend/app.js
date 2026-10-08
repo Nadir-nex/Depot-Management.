@@ -1,0 +1,110 @@
+'use strict';
+/* Browser-compatible frontend. No Electron imports, no Node imports, no SQL.
+ * Transport resolution (works in Electron AND in a future hosted browser build):
+ *  - Electron desktop: window.depotApi (injected by preload, IPC -> local app layer)
+ *  - Future web:       fetch('/api/<method>') (hosted app layer) — same method names.
+ */
+(function () {
+  const api = window.depotApi || httpApi();
+
+  function httpApi() {
+    async function post(method, body) {
+      const res = await fetch(`/api/${method}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      });
+      return res.json();
+    }
+    return {
+      _transport: 'http:/api (future hosted backend)',
+      createProduct: (input) => post('products:create', { input }),
+      receiveStock: (payload) => post('stock:receive', { payload }),
+      listStock: (w) => post('stock:list', { warehouse: w }),
+      listReceipts: () => post('receipts:list', {}),
+    };
+  }
+
+  const transportEl = document.getElementById('transport');
+  transportEl.textContent = window.depotApi ? 'desktop · local API' : (api._transport || 'unknown transport');
+
+  function show(el, ok, text) {
+    el.textContent = text;
+    el.className = `msg ${ok ? 'ok' : 'err'}`;
+  }
+
+  async function unwrap(promise) {
+    const res = await promise;
+    if (!res || res.ok !== true) throw new Error((res && (res.message || res.code)) || 'request failed');
+    return res.data;
+  }
+
+  async function refresh() {
+    const stockBody = document.getElementById('stock-body');
+    const receiptsBody = document.getElementById('receipts-body');
+    try {
+      const stock = await unwrap(api.listStock('MAIN'));
+      const rows = stock.rows || stock;
+      stockBody.innerHTML = rows.length
+        ? rows.map((r) => `<tr><td>${escapeHtml(r.sku)}</td><td>${escapeHtml(r.name)}</td><td>${r.stock}</td></tr>`).join('')
+        : '<tr><td colspan="3">لا يوجد مخزون بعد.</td></tr>';
+    } catch (e) {
+      stockBody.innerHTML = `<tr><td colspan="3">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+    try {
+      const receipts = await unwrap(api.listReceipts({}));
+      receiptsBody.innerHTML = receipts.length
+        ? receipts.slice(0, 20).map((r) => `<tr><td>${escapeHtml(r.receipt_no)}</td><td>${escapeHtml(r.supplier_name || '')}</td><td>${escapeHtml(r.status)}</td><td>${escapeHtml(r.posted_at || '')}</td></tr>`).join('')
+        : '<tr><td colspan="4">لا توجد سندات بعد.</td></tr>';
+    } catch (e) {
+      receiptsBody.innerHTML = `<tr><td colspan="4">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  document.getElementById('product-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('product-msg');
+    const fd = new FormData(e.target);
+    try {
+      const created = await unwrap(api.createProduct({
+        sku: String(fd.get('sku') || '').trim(),
+        name: String(fd.get('name') || '').trim(),
+        barcode: String(fd.get('barcode') || '').trim() || null,
+        defaultUnitCost: Number(String(fd.get('defaultUnitCost') || '0').trim() || 0),
+      }));
+      show(msg, true, `تم إنشاء المنتج #${created.id} (${created.sku}).`);
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل الإنشاء: ${err.message}`);
+    }
+  });
+
+  document.getElementById('receipt-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('receipt-msg');
+    const fd = new FormData(e.target);
+    try {
+      const receipt = await unwrap(api.receiveStock({
+        warehouseCode: 'MAIN',
+        supplierName: String(fd.get('supplierName') || ''),
+        lines: [{
+          sku: String(fd.get('sku') || '').trim(),
+          qty: Number(String(fd.get('qty') || '').trim()),
+          unitCost: Number(String(fd.get('unitCost') || '0').trim() || 0),
+        }],
+      }));
+      show(msg, true, `تم الاستلام: ${receipt.receipt_no} (${receipt.lines.length} سطر).`);
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل الاستلام: ${err.message}`);
+    }
+  });
+
+  document.getElementById('refresh').addEventListener('click', refresh);
+  refresh();
+})();

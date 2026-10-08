@@ -1,11 +1,19 @@
 {
   "name": "depot-management",
-  "version": "0.1.0",
-  "description": "Depot Management - Electron + SQLite (Arabic RTL, Inventory first)",
-  "main": "main.js",
+  "version": "0.2.0",
+  "description": "Depot Management — clean rebuild: Electron desktop now, browser+server later. Browser-compatible frontend + Node application/API layer + SQLite (migrated, transactional, repository-isolated).",
+  "type": "commonjs",
+  "main": "src/infrastructure/electron/main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "test": "node --test tests/",
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seed.js",
+    "db:integrity": "node scripts/integrity-check.js"
+  },
+  "engines": {
+    "node": ">=22.5"
   },
   "devDependencies": {
     "electron": "^44.4.5"

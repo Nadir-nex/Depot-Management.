@@ -12,11 +12,17 @@ release/
 *.exe
 *.dmg
 
-# Local SQLite data (schema is in db/database.js)
+# Local SQLite data — schemas live in src/db/migrations/, never commit database files.
+# db/database.sqlite is the LEGACY prototype database (migration source, untouched).
 db/*.sqlite
 db/*.sqlite-wal
 db/*.sqlite-shm
 db/*.db
+# New clean database lives under data/ (override with DEPOT_DB_PATH).
+data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
+data/*.db
 *.sqlite-wal
 *.sqlite-shm
 

@@ -1,0 +1,2 @@
+New clean database files live here (gitignored). Default: data/app.sqlite.
+Legacy prototype database stays at db/database.sqlite (migration source, untouched).
