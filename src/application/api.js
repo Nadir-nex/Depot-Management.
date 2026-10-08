@@ -17,6 +17,7 @@ const warehousesApp = require('./warehouses');
 const stockApp = require('./stock');
 const lotsApp = require('./lots');
 const partiesApp = require('./parties');
+const documentsApp = require('./documents');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -67,6 +68,14 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       deleteParty: (id, auth) => partiesApp.deleteParty(db, id, auth),
       addPartyPhone: (partyId, input, auth) => partiesApp.addPartyPhone(db, partyId, input, auth),
       removePartyPhone: (id, auth) => partiesApp.removePartyPhone(db, id, auth),
+      createDocument: (input, auth) => documentsApp.createDocument(db, input, auth),
+      updateDocument: (id, fields, auth) => documentsApp.updateDocument(db, id, fields, auth),
+      addDocumentLine: (docId, line, auth) => documentsApp.addLine(db, docId, line, auth),
+      updateDocumentLine: (lineId, fields, auth) => documentsApp.updateLine(db, lineId, fields, auth),
+      removeDocumentLine: (lineId, auth) => documentsApp.removeLine(db, lineId, auth),
+      confirmDocument: (id, auth) => documentsApp.confirmDocument(db, id, auth),
+      postDocument: (id, auth) => documentsApp.postDocument(db, id, auth),
+      cancelDocument: (id, reason, auth) => documentsApp.cancelDocument(db, id, reason, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -102,6 +111,8 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       listParties: (opts) => partiesApp.listParties(db, opts),
       getParty: (id) => partiesApp.getParty(db, id),
       checkCredit: (args) => partiesApp.checkCredit(db, args),
+      listDocuments: (opts) => documentsApp.listDocuments(db, opts),
+      getDocument: (id) => documentsApp.getDocument(db, id),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };
