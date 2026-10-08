@@ -289,6 +289,21 @@ function postDocument(db, id, actorOrAuth = 'system', opts = {}) {
     const fresh = docs.getById(id);
     const totals = computeTotals(lines, fresh.docDiscountAmount);
     docs.setTotals(id, totals);
+    // Snapshot party and warehouse for historical printing stability
+    const partyRepo = createPartyRepository(db);
+    const party = fresh.partyId ? partyRepo.getById(fresh.partyId) : null;
+    const warehouseRepo = createWarehouseRepository(db);
+    const warehouse = fresh.warehouseId ? warehouseRepo.getById(fresh.warehouseId) : null;
+    const snap = {
+      partyName: party ? party.displayName : '',
+      partyTaxId: party ? (party.taxId || '') : '',
+      partyAddress: party ? (party.address || '') : '',
+      partyEmail: party ? (party.email || '') : '',
+      partyPhone: party ? (party.phone || '') : '',
+      warehouseCode: warehouse ? warehouse.code : '',
+      warehouseName: warehouse ? warehouse.name : '',
+    };
+    docs.setSnapshot(id, snap);
     const updated = docs.setStatus(id, 'posted', { postedAt: utcNowIso() });
     createAuditRepository(db).append({ actor: auth.actor, operation: 'document.post', entityType: 'document', entityId: id, details: `grand=${totals.grandTotal}`, after: `status=posted grand=${totals.grandTotal}`, referenceNo: updated.docNo });
     return getDocument(db, id);

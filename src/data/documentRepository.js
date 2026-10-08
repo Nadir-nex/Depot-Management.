@@ -16,6 +16,9 @@ function toDoc(r) {
     currency: r.currency, notes: r.notes,
     postedAt: r.posted_at, cancelledAt: r.cancelled_at, cancelReason: r.cancel_reason,
     createdAt: r.created_at, updatedAt: r.updated_at,
+    partyName: r.party_name, partyTaxId: r.party_tax_id, partyAddress: r.party_address,
+    partyEmail: r.party_email, partyPhone: r.party_phone,
+    warehouseCode: r.warehouse_code, warehouseName: r.warehouse_name,
   };
 }
 
@@ -74,6 +77,15 @@ function createDocumentRepository(db) {
       db.prepare(
         'UPDATE documents SET subtotal = ?, discount_total = ?, tax_total = ?, grand_total = ?, updated_at = ? WHERE id = ?'
       ).run(subtotal, discountTotal, taxTotal, grandTotal, utcNowIso(), id);
+      return this.getById(id);
+    },
+    setSnapshot(id, { partyName, partyTaxId, partyAddress, partyEmail, partyPhone, warehouseCode, warehouseName }) {
+      db.prepare(
+        'UPDATE documents SET party_name = ?, party_tax_id = ?, party_address = ?, party_email = ?, party_phone = ?, warehouse_code = ?, warehouse_name = ?, updated_at = ? WHERE id = ?'
+      ).run(
+        partyName ?? '', partyTaxId ?? '', partyAddress ?? '', partyEmail ?? '', partyPhone ?? '',
+        warehouseCode ?? '', warehouseName ?? '', utcNowIso(), id
+      );
       return this.getById(id);
     },
     nextDailySequence(prefix) {
