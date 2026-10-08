@@ -34,6 +34,8 @@
           <label>SKU المنتج<input name="sku" required placeholder="مثلا: SUGAR-1KG" /></label>
           <label>الكمية<input name="qty" required inputmode="numeric" value="10" /></label>
           <label>تكلفة الوحدة (سنتيم)<input name="unitCost" inputmode="numeric" value="0" /></label>
+          <label>طلب الشراء (ID، اختياري)<input name="purchaseOrderId" inputmode="numeric" /></label>
+          <label>فاتورة المورّد (اختياري)<input name="supplierInvoiceNo" maxlength="64" /></label>
           <button type="submit">استلام</button>
         </form>
         <div class="msg" id="receipt-msg"></div>
@@ -50,6 +52,21 @@
           <button type="submit">تنفيذ</button>
         </form>
         <div class="msg" id="stockop-msg"></div>
+      </section>
+      <section class="card wide">
+        <h2>المشتريات (طلب → استلام)</h2>
+        <form id="po-form">
+          <label>رمز المورّد<input name="supplierCode" required /></label>
+          <label>SKU<input name="sku" required /></label>
+          <label>الكمية<input name="qty" required inputmode="numeric" value="10" /></label>
+          <label>التكلفة (سنتيم)<input name="unitCost" inputmode="numeric" value="0" /></label>
+          <button type="submit">إنشاء طلب شراء</button>
+        </form>
+        <div class="msg" id="po-msg"></div>
+        <table>
+          <thead><tr><th>الرقم</th><th>المورّد</th><th>الحالة</th><th>المجموع</th><th>إجراء</th></tr></thead>
+          <tbody id="po-body"><tr><td colspan="5">…</td></tr></tbody>
+        </table>
       </section>
       <section class="card wide">
         <h2>المبيعات (طلب → توصيل → فاتورة)</h2>

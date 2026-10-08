@@ -14,6 +14,7 @@ const { createProductRepository } = require('../data/productRepository');
 const { createPackRepository } = require('../data/catalogRepository');
 const { createLotRepository, createSerialRepository } = require('../data/lotRepository');
 const { createPartyRepository, createPartyRoleRepository } = require('../data/partyRepository');
+const { createDocumentRepository, createDocumentLineRepository } = require('../data/documentRepository');
 const {
   createWarehouseRepository,
   createStockRepository,
@@ -117,14 +118,53 @@ function resolveSupplierParty(db, payload) {
   return party;
 }
 
+// Optional order linkage: id must resolve to a POSTED purchase_order. The
+// receipt inherits the order's supplier when it names none, must agree when
+// it names one, and can never exceed per-product remaining quantities.
+function resolvePurchaseOrder(db, payload) {
+  const id = payload.purchaseOrderId ?? payload.purchase_order_id ?? null;
+  if (id === null || id === undefined) return null;
+  const order = createDocumentRepository(db).getById(id);
+  if (order.docType !== 'purchase_order') throw new ValidationError(`document ${order.docNo} is not a purchase order`);
+  if (order.status !== 'posted') throw new StateError(`purchase order ${order.docNo} is ${order.status}: only posted orders receive`);
+  order.lines = createDocumentLineRepository(db).ofDocument(id);
+  return order;
+}
+
+// Per-product remaining guard: ordered minus already received (live receipts).
+function assertOrderRemaining(db, order, resolved) {
+  const receipts = createReceiptRepository(db);
+  const byProduct = new Map();
+  for (const r of resolved) byProduct.set(r.product.id, (byProduct.get(r.product.id) || 0) + r.qty);
+  for (const [productId, newQty] of byProduct) {
+    const ordered = order.lines.filter((l) => l.product_id === productId).reduce((n, l) => n + l.qty, 0);
+    const sku = resolved.find((r) => r.product.id === productId).product.sku;
+    if (ordered === 0) throw new StateError(`product ${sku} is not on order ${order.docNo}`);
+    const received = receipts.receivedQty(order.id, productId);
+    if (received + newQty > ordered) {
+      throw new StateError(`only ${ordered - received} of ${sku} remaining on order ${order.docNo}`);
+    }
+  }
+}
+
 // Creates a POSTED purchase receipt: header + lines + one stock movement per
 // line, atomically. All lines must reference existing ACTIVE products.
 function receiveStock(db, payload = {}, actorOrAuth = 'system') {
   const auth = requirePermission(normalizeAuth(actorOrAuth), 'purchases.post');
   const lines = validateReceiptLines(payload.lines);
   let supplierName = cleanText(payload.supplierName ?? payload.supplier_name).slice(0, 200);
-  const supplierParty = resolveSupplierParty(db, payload);
-  if (supplierParty && !supplierName) supplierName = supplierParty.displayName.slice(0, 200);
+  let supplierParty = resolveSupplierParty(db, payload);
+  const order = resolvePurchaseOrder(db, payload);
+  if (order) {
+    // The order governs: inherit its supplier when unnamed, agree when named.
+    if (!supplierParty && order.partyId) supplierParty = createPartyRepository(db).getById(order.partyId);
+    if (supplierParty && order.partyId && supplierParty.id !== order.partyId) {
+      throw new ValidationError(`receipt supplier ${supplierParty.code} differs from order supplier`);
+    }
+    if (supplierParty && !supplierName) supplierName = supplierParty.displayName.slice(0, 200);
+  } else if (supplierParty && !supplierName) {
+    supplierName = supplierParty.displayName.slice(0, 200);
+  }
   return withTransaction(db, () => {
     const warehouses = createWarehouseRepository(db);
     const products = createProductRepository(db);
@@ -169,9 +209,11 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
       return { product, qty, unitCost, unitCode, note, lotId, serials };
     });
 
+    if (order) assertOrderRemaining(db, order, resolved);
+
     let receipt;
     try {
-      receipt = receipts.insertReceipt({ receiptNo, warehouseId: warehouse.id, supplierName, supplierPartyId: supplierParty ? supplierParty.id : null });
+      receipt = receipts.insertReceipt({ receiptNo, warehouseId: warehouse.id, supplierName, supplierPartyId: supplierParty ? supplierParty.id : null, purchaseOrderId: order ? order.id : null });
     } catch (err) {
       if (err && /UNIQUE constraint failed.*receipt_no/i.test(err.message || '')) {
         const { ConflictError } = require('../domain/errors');
@@ -197,7 +239,7 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
         createSerialRepository(db).insert({ productId: r.product.id, lotId: r.lotId, code, warehouseId: warehouse.id, movementId });
       }
     }
-    audit.append({ actor: auth.actor, operation: 'stock.receive', entityType: 'purchase_receipt', entityId: receipt.id, details: `receipt_no=${receiptNo} lines=${resolved.length}`, after: `status=posted lines=${resolved.length}`, referenceNo: receiptNo });
+    audit.append({ actor: auth.actor, operation: 'stock.receive', entityType: 'purchase_receipt', entityId: receipt.id, details: `receipt_no=${receiptNo} lines=${resolved.length}${order ? ` order=${order.docNo}` : ''}`, after: `status=posted lines=${resolved.length}`, referenceNo: receiptNo });
     return receipts.getWithLines(receipt.id);
   });
 }

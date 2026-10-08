@@ -77,6 +77,7 @@ contextBridge.exposeInMainWorld('depotApi', {
   convertDeliveriesToInvoice: (ids, opts, actor) => call('sales:convert-deliveries', ids, opts, actor),
   postDeliveryNote: (id, opts, actor) => call('sales:post-delivery', id, opts, actor),
   postInvoice: (id, actor) => call('sales:post-invoice', id, actor),
+  recordSupplierInvoice: (id, input, actor) => call('purchases:record-invoice', id, input, actor),
   listStock: (warehouse) => call('stock:list', warehouse),
   listMovements: (opts) => call('stock:movements', opts),
   listReceipts: (opts) => call('receipts:list', opts),

@@ -98,6 +98,7 @@ function registerIpc() {
     'sales:convert-deliveries': ([ids, opts, actor]) => appApi.commands.convertDeliveriesToInvoice(ids, opts, serverAuth(actor)),
     'sales:post-delivery': ([id, opts, actor]) => appApi.commands.postDeliveryNote(id, opts, serverAuth(actor)),
     'sales:post-invoice': ([id, actor]) => appApi.commands.postInvoice(id, serverAuth(actor)),
+    'purchases:record-invoice': ([id, input, actor]) => appApi.commands.recordSupplierInvoice(id, input, serverAuth(actor)),
     'stock:list': ([warehouse]) => appApi.queries.listStock(warehouse),
     'stock:movements': ([opts]) => appApi.queries.listMovements(opts),
     'receipts:list': ([opts]) => appApi.queries.listReceipts(opts),

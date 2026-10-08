@@ -34,6 +34,7 @@
       convertDeliveriesToInvoice: (ids, opts) => post('sales:convert-deliveries', { ids, opts }),
       postDeliveryNote: (id, opts) => post('sales:post-delivery', { id, opts }),
       postInvoice: (id) => post('sales:post-invoice', { id }),
+      recordSupplierInvoice: (id, input) => post('purchases:record-invoice', { id, input }),
     };
   }
 
@@ -56,6 +57,7 @@
     await refreshWarehouses();
     await refreshParties();
     await refreshSales();
+    await refreshPOs();
     const stockWh = document.getElementById('stock-warehouse');
     const warehouse = stockWh && stockWh.value ? stockWh.value : 'MAIN';
     const stockBody = document.getElementById('stock-body');
@@ -204,16 +206,80 @@
       const receipt = await unwrap(api.receiveStock({
         warehouseCode: String(fd.get('warehouseCode') || 'MAIN').trim() || 'MAIN',
         supplierName: String(fd.get('supplierName') || ''),
+        purchaseOrderId: String(fd.get('purchaseOrderId') || '').trim() === '' ? null : Number(String(fd.get('purchaseOrderId')).trim()),
         lines: [{
           sku: String(fd.get('sku') || '').trim(),
           qty: Number(String(fd.get('qty') || '').trim()),
           unitCost: Number(String(fd.get('unitCost') || '0').trim() || 0),
         }],
       }));
+      const invNo = String(fd.get('supplierInvoiceNo') || '').trim();
+      if (invNo && typeof api.recordSupplierInvoice === 'function') {
+        await unwrap(api.recordSupplierInvoice(receipt.id, { invoiceNo: invNo }));
+      }
       show(msg, true, `تم الاستلام: ${receipt.receipt_no} (${receipt.lines.length} سطر).`);
       refresh();
     } catch (err) {
       show(msg, false, `فشل الاستلام: ${err.message}`);
+    }
+  });
+
+  async function refreshPOs() {
+    const body = document.getElementById('po-body');
+    if (!body || typeof api.listDocuments !== 'function') return;
+    try {
+      const docs = await unwrap(api.listDocuments({}));
+      const rows = docs.filter((d) => (d.docType || d.doc_type) === 'purchase_order').slice(0, 20);
+      body.innerHTML = rows.length
+        ? rows.map((d) => {
+            const action = d.status === 'draft' ? { a: 'confirm', l: 'تأكيد' } : d.status === 'confirmed' ? { a: 'post', l: 'ترحيل' } : null;
+            return `<tr><td>${escapeHtml(d.docNo || d.doc_no)} (#${d.id})</td><td>${escapeHtml(d.partyId ?? d.party_id ?? '')}</td><td>${escapeHtml(d.status)}</td><td>${d.grandTotal ?? d.grand_total}</td><td>${action ? `<button data-po-action="${action.a}" data-id="${d.id}">${action.l}</button>` : '—'}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="5">لا توجد طلبات شراء بعد.</td></tr>';
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="5">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  document.getElementById('po-body').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-po-action]');
+    if (!btn) return;
+    const msg = document.getElementById('po-msg');
+    try {
+      if (btn.dataset.poAction === 'confirm') await unwrap(api.confirmDocument(Number(btn.dataset.id)));
+      else await unwrap(api.postDocument(Number(btn.dataset.id)));
+      show(msg, true, 'تمت العملية بنجاح.');
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشلت العملية: ${err.message}`);
+    }
+  });
+
+  document.getElementById('po-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('po-msg');
+    const fd = new FormData(e.target);
+    try {
+      const sku = String(fd.get('sku') || '').trim();
+      const products = await unwrap(api.listProducts({ search: sku }));
+      const product = products.find((x) => x.sku === sku);
+      if (!product) throw new Error('product not found');
+      const parties = await unwrap(api.listParties({ search: String(fd.get('supplierCode') || '').trim() }));
+      const supplier = parties.find((x) => x.code === String(fd.get('supplierCode') || '').trim());
+      if (!supplier) throw new Error('supplier not found');
+      const created = await unwrap(api.createDocument({
+        type: 'purchase_order', partyId: supplier.id,
+        lines: [{
+          productId: product.id,
+          qty: Number(String(fd.get('qty') || '').trim()),
+          unitPrice: Number(String(fd.get('unitCost') || '0').trim() || 0),
+        }],
+      }));
+      show(msg, true, `تم إنشاء الطلب ${created.docNo || created.doc_no} (#${created.id}).`);
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل الإنشاء: ${err.message}`);
     }
   });
 

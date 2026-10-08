@@ -19,6 +19,7 @@ const lotsApp = require('./lots');
 const partiesApp = require('./parties');
 const documentsApp = require('./documents');
 const salesApp = require('./sales');
+const purchasesApp = require('./purchases');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -81,6 +82,7 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       convertDeliveriesToInvoice: (ids, opts, auth) => salesApp.convertDeliveriesToInvoice(db, ids, { ...(opts || {}), actor: auth }),
       postDeliveryNote: (id, opts, auth) => salesApp.postDeliveryNote(db, id, { ...(opts || {}), actor: auth }),
       postInvoice: (id, auth) => salesApp.postInvoice(db, id, auth),
+      recordSupplierInvoice: (id, input, auth) => purchasesApp.recordSupplierInvoice(db, id, input, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();

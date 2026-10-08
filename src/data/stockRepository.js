@@ -1,6 +1,6 @@
 'use strict';
 // Warehouse + stock-movement + receipt + audit repositories. Raw SQL only.
-const { NotFoundError, ValidationError } = require('../domain/errors');
+const { NotFoundError, StateError, ValidationError } = require('../domain/errors');
 const { utcNowIso } = require('../db');
 const { isAuditOperation } = require('../domain/vocabulary');
 const { validateMovementType } = require('../domain/inventory');
@@ -175,13 +175,13 @@ function createTransferRepository(db) {
 
 function createReceiptRepository(db) {
   return {
-    insertReceipt({ receiptNo, warehouseId, supplierName, supplierPartyId = null, postedAt }) {
+    insertReceipt({ receiptNo, warehouseId, supplierName, supplierPartyId = null, purchaseOrderId = null, postedAt }) {
       const now = utcNowIso();
       const info = db.prepare(
         `INSERT INTO purchase_receipts
-           (receipt_no, warehouse_id, supplier_name, supplier_party_id, status, posted_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'posted', ?, ?, ?)`
-      ).run(receiptNo, warehouseId, supplierName, supplierPartyId, postedAt || now, now, now);
+           (receipt_no, warehouse_id, supplier_name, supplier_party_id, purchase_order_id, status, posted_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'posted', ?, ?, ?)`
+      ).run(receiptNo, warehouseId, supplierName, supplierPartyId, purchaseOrderId, postedAt || now, now, now);
       return this.getById(Number(info.lastInsertRowid));
     },
     insertLine({ receiptId, productId, qty, unitCost, lotId = null }) {
@@ -198,6 +198,26 @@ function createReceiptRepository(db) {
     linesOf(receiptId) {
       return db.prepare('SELECT * FROM purchase_receipt_lines WHERE receipt_id = ? ORDER BY id').all(receiptId);
     },
+    setSupplierInvoice(id, { invoiceNo, total }) {
+      const info = db.prepare(
+        'UPDATE purchase_receipts SET supplier_invoice_no = ?, supplier_invoice_total = ?, updated_at = ? WHERE id = ? AND status = ?'
+      ).run(invoiceNo, total, utcNowIso(), id, 'posted');
+      if (info.changes === 0) {
+        const cur = db.prepare('SELECT status FROM purchase_receipts WHERE id = ?').get(id);
+        if (!cur) throw new NotFoundError(`receipt ${id} not found`);
+        throw new StateError(`receipt ${id} is ${cur.status}: invoice matching needs a posted receipt`);
+      }
+      return this.getById(id);
+    },
+    // Quantity already received against an order line-product by live receipts.
+    receivedQty(orderId, productId) {
+      const r = db.prepare(
+        `SELECT COALESCE(SUM(l.qty), 0) AS used FROM purchase_receipt_lines l
+         JOIN purchase_receipts r ON r.id = l.receipt_id
+         WHERE r.purchase_order_id = ? AND r.status = 'posted' AND l.product_id = ?`
+      ).get(orderId, productId);
+      return r.used;
+    },
     getWithLines(id) {
       const receipt = this.getById(id);
       return { ...receipt, lines: this.linesOf(id) };
@@ -210,7 +230,7 @@ function createReceiptRepository(db) {
       if (info.changes === 0) {
         const cur = db.prepare('SELECT status FROM purchase_receipts WHERE id = ?').get(id);
         if (!cur) throw new NotFoundError(`receipt ${id} not found`);
-        throw new Error(`receipt ${id} is ${cur.status}, only posted receipts can be cancelled`);
+        throw new StateError(`receipt ${id} is ${cur.status}, only posted receipts can be cancelled`);
       }
       return this.getById(id);
     },
