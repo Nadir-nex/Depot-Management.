@@ -13,6 +13,7 @@ const { validateUnitCost } = require('../domain/products');
 const { createProductRepository } = require('../data/productRepository');
 const { createPackRepository } = require('../data/catalogRepository');
 const { createLotRepository, createSerialRepository } = require('../data/lotRepository');
+const { createPartyRepository, createPartyRoleRepository } = require('../data/partyRepository');
 const {
   createWarehouseRepository,
   createStockRepository,
@@ -101,12 +102,29 @@ function cleanReceiptSerials(raw, product, pieces) {
   return codes;
 }
 
+// Optional supplier linkage: id or code must resolve to an ACTIVE party with
+// the supplier role. The name snapshot stays on the receipt either way.
+function resolveSupplierParty(db, payload) {
+  const id = payload.supplierPartyId ?? payload.supplier_party_id ?? null;
+  const code = cleanText(payload.supplierPartyCode ?? payload.supplier_party_code ?? '');
+  if ((id === null || id === undefined) && !code) return null;
+  const parties = createPartyRepository(db);
+  const party = id !== null && id !== undefined ? parties.getById(id) : parties.getByCode(code.toUpperCase());
+  if (!party) throw new NotFoundError(`supplier party ${code || id} not found`);
+  if (!party.isActive) throw new StateError(`supplier ${party.code} is inactive`);
+  const roles = createPartyRoleRepository(db).ofParty(party.id);
+  if (!roles.includes('supplier')) throw new StateError(`party ${party.code} is not a supplier`);
+  return party;
+}
+
 // Creates a POSTED purchase receipt: header + lines + one stock movement per
 // line, atomically. All lines must reference existing ACTIVE products.
 function receiveStock(db, payload = {}, actorOrAuth = 'system') {
   const auth = requirePermission(normalizeAuth(actorOrAuth), 'purchases.post');
   const lines = validateReceiptLines(payload.lines);
-  const supplierName = cleanText(payload.supplierName ?? payload.supplier_name).slice(0, 200);
+  let supplierName = cleanText(payload.supplierName ?? payload.supplier_name).slice(0, 200);
+  const supplierParty = resolveSupplierParty(db, payload);
+  if (supplierParty && !supplierName) supplierName = supplierParty.displayName.slice(0, 200);
   return withTransaction(db, () => {
     const warehouses = createWarehouseRepository(db);
     const products = createProductRepository(db);
@@ -153,7 +171,7 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
 
     let receipt;
     try {
-      receipt = receipts.insertReceipt({ receiptNo, warehouseId: warehouse.id, supplierName });
+      receipt = receipts.insertReceipt({ receiptNo, warehouseId: warehouse.id, supplierName, supplierPartyId: supplierParty ? supplierParty.id : null });
     } catch (err) {
       if (err && /UNIQUE constraint failed.*receipt_no/i.test(err.message || '')) {
         const { ConflictError } = require('../domain/errors');

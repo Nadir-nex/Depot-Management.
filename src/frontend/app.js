@@ -24,6 +24,8 @@
       listReceipts: () => post('receipts:list', {}),
       listCategories: () => post('categories:list', {}),
       listWarehouses: () => post('warehouses:list', {}),
+      listParties: () => post('parties:list', {}),
+      createParty: (input) => post('parties:create', { input }),
     };
   }
 
@@ -44,6 +46,7 @@
   async function refresh() {
     await refreshCategories();
     await refreshWarehouses();
+    await refreshParties();
     const stockWh = document.getElementById('stock-warehouse');
     const warehouse = stockWh && stockWh.value ? stockWh.value : 'MAIN';
     const stockBody = document.getElementById('stock-body');
@@ -102,6 +105,20 @@
     } catch (e) { /* warehouse selects keep their MAIN default */ }
   }
 
+  async function refreshParties() {
+    if (typeof api.listParties !== 'function') return;
+    const body = document.getElementById('parties-body');
+    if (!body) return;
+    try {
+      const rows = await unwrap(api.listParties({}));
+      body.innerHTML = rows.length
+        ? rows.slice(0, 30).map((p) => `<tr><td>${escapeHtml(p.code)}</td><td>${escapeHtml(p.display_name || p.displayName)}</td><td>${escapeHtml((p.roles || []).join(','))}</td><td>${p.balance ? p.balance.payable : '—'}</td></tr>`).join('')
+        : '<tr><td colspan="4">لا يوجد متعاملون بعد.</td></tr>';
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="4">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
   document.getElementById('product-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const msg = document.getElementById('product-msg');
@@ -147,6 +164,26 @@
 
   document.getElementById('refresh').addEventListener('click', refresh);
   document.getElementById('stock-warehouse').addEventListener('change', refresh);
+
+  document.getElementById('party-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('party-msg');
+    const fd = new FormData(e.target);
+    const role = String(fd.get('role') || 'customer');
+    try {
+      if (typeof api.createParty !== 'function') throw new Error('party management needs the desktop API');
+      const created = await unwrap(api.createParty({
+        displayName: String(fd.get('displayName') || '').trim(),
+        roles: role === 'both' ? ['customer', 'supplier'] : [role],
+        phone: String(fd.get('phone') || '').trim(),
+      }));
+      show(msg, true, `تم إنشاء ${created.code}.`);
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل الإنشاء: ${err.message}`);
+    }
+  });
 
   document.getElementById('stockop-form').addEventListener('submit', async (e) => {
     e.preventDefault();

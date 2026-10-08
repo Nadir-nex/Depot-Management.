@@ -175,13 +175,13 @@ function createTransferRepository(db) {
 
 function createReceiptRepository(db) {
   return {
-    insertReceipt({ receiptNo, warehouseId, supplierName, postedAt }) {
+    insertReceipt({ receiptNo, warehouseId, supplierName, supplierPartyId = null, postedAt }) {
       const now = utcNowIso();
       const info = db.prepare(
         `INSERT INTO purchase_receipts
-           (receipt_no, warehouse_id, supplier_name, status, posted_at, created_at, updated_at)
-         VALUES (?, ?, ?, 'posted', ?, ?, ?)`
-      ).run(receiptNo, warehouseId, supplierName, postedAt || now, now, now);
+           (receipt_no, warehouse_id, supplier_name, supplier_party_id, status, posted_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'posted', ?, ?, ?)`
+      ).run(receiptNo, warehouseId, supplierName, supplierPartyId, postedAt || now, now, now);
       return this.getById(Number(info.lastInsertRowid));
     },
     insertLine({ receiptId, productId, qty, unitCost, lotId = null }) {

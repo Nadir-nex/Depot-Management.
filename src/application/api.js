@@ -16,6 +16,7 @@ const pricingApp = require('./pricing');
 const warehousesApp = require('./warehouses');
 const stockApp = require('./stock');
 const lotsApp = require('./lots');
+const partiesApp = require('./parties');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -59,6 +60,13 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       reverseStockMovement: (id, reason, auth) => stockApp.reverseStockMovement(db, id, reason, auth),
       createLot: (productId, input, auth) => lotsApp.createLot(db, productId, input, auth),
       deleteLot: (id, auth) => lotsApp.deleteLot(db, id, auth),
+      createParty: (input, auth) => partiesApp.createParty(db, input, auth),
+      updateParty: (id, fields, auth) => partiesApp.updateParty(db, id, fields, auth),
+      setPartyRoles: (id, roles, auth) => partiesApp.setPartyRoles(db, id, roles, auth),
+      setPartyActive: (id, active, auth) => partiesApp.setPartyActive(db, id, active, auth),
+      deleteParty: (id, auth) => partiesApp.deleteParty(db, id, auth),
+      addPartyPhone: (partyId, input, auth) => partiesApp.addPartyPhone(db, partyId, input, auth),
+      removePartyPhone: (id, auth) => partiesApp.removePartyPhone(db, id, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -91,6 +99,9 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       getLot: (id) => lotsApp.getLot(db, id),
       suggestLots: (args) => lotsApp.suggestLots(db, args),
       listSerials: (productId, status) => lotsApp.listSerials(db, productId, status),
+      listParties: (opts) => partiesApp.listParties(db, opts),
+      getParty: (id) => partiesApp.getParty(db, id),
+      checkCredit: (args) => partiesApp.checkCredit(db, args),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };

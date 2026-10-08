@@ -52,6 +52,20 @@
         <div class="msg" id="stockop-msg"></div>
       </section>
       <section class="card wide">
+        <h2>المتعاملون (زبائن / مورّدون)</h2>
+        <form id="party-form">
+          <label>الاسم<input name="displayName" required maxlength="200" /></label>
+          <label>الدور<select name="role"><option value="customer">زبون</option><option value="supplier">مورّد</option><option value="both">كلاهما</option></select></label>
+          <label>الهاتف<input name="phone" maxlength="32" /></label>
+          <button type="submit">إنشاء متعامل</button>
+        </form>
+        <div class="msg" id="party-msg"></div>
+        <table>
+          <thead><tr><th>الرمز</th><th>الاسم</th><th>الأدوار</th><th>المستحق (سنتيم)</th></tr></thead>
+          <tbody id="parties-body"><tr><td colspan="4">…</td></tr></tbody>
+        </table>
+      </section>
+      <section class="card wide">
         <h2>المخزون (مشتق من حركات حقيقية)</h2>
         <div class="row">
           <button id="refresh" type="button">تحديث</button>
