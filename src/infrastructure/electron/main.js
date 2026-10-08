@@ -21,14 +21,21 @@ function serializeError(err) {
 }
 
 function registerIpc() {
+  // Server-side auth: ONLY a bare actor name is accepted from the renderer.
+  // Any object (e.g. { actor, grants }) is coerced to a name — privilege NEVER
+  // crosses IPC. Single-user desktop grants itself '*'; hosted mode will build
+  // session grants here instead. Enforcement happens in the application layer.
+  const serverAuth = (actor) => (typeof actor === 'string' && actor.trim()
+    ? { actor: actor.trim().slice(0, 120), grants: ['*'] }
+    : { actor: 'renderer', grants: ['*'] });
   const routes = {
-    'products:create': ([input, actor]) => appApi.commands.createProduct(input, actor),
+    'products:create': ([input, actor]) => appApi.commands.createProduct(input, serverAuth(actor)),
     'products:list': ([opts]) => appApi.queries.listProducts(opts),
     'products:get': ([id]) => appApi.queries.getProduct(id),
-    'products:set-active': ([id, active, actor]) => appApi.commands.setProductActive(id, active, actor),
-    'products:delete': ([id, actor]) => appApi.commands.deleteProduct(id, actor),
-    'stock:receive': ([payload, actor]) => appApi.commands.receiveStock(payload, actor),
-    'stock:cancel-receipt': ([id, reason, actor]) => appApi.commands.cancelReceipt(id, reason, actor),
+    'products:set-active': ([id, active, actor]) => appApi.commands.setProductActive(id, active, serverAuth(actor)),
+    'products:delete': ([id, actor]) => appApi.commands.deleteProduct(id, serverAuth(actor)),
+    'stock:receive': ([payload, actor]) => appApi.commands.receiveStock(payload, serverAuth(actor)),
+    'stock:cancel-receipt': ([id, reason, actor]) => appApi.commands.cancelReceipt(id, reason, serverAuth(actor)),
     'stock:list': ([warehouse]) => appApi.queries.listStock(warehouse),
     'stock:movements': ([opts]) => appApi.queries.listMovements(opts),
     'receipts:list': ([opts]) => appApi.queries.listReceipts(opts),

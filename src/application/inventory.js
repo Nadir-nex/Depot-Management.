@@ -5,6 +5,7 @@
 // movements and flips the receipt status. No Electron, no fs, no SQL here
 // beyond the repository calls (repositories own the SQL).
 const { ValidationError, NotFoundError, StateError } = require('../domain/errors');
+const { normalizeAuth, requirePermission } = require('../domain/permissions');
 const { validateReceiptLines, assertReceiptCancellable, reversalOf } = require('../domain/inventory');
 const { validateUnitCost } = require('../domain/products');
 const { createProductRepository } = require('../data/productRepository');
@@ -52,7 +53,8 @@ function buildReceiptNo(receipts, requested) {
 
 // Creates a POSTED purchase receipt: header + lines + one stock movement per
 // line, atomically. All lines must reference existing ACTIVE products.
-function receiveStock(db, payload = {}, actor = 'system') {
+function receiveStock(db, payload = {}, actorOrAuth = 'system') {
+  const auth = requirePermission(normalizeAuth(actorOrAuth), 'purchases.post');
   const lines = validateReceiptLines(payload.lines);
   const supplierName = cleanText(payload.supplierName ?? payload.supplier_name).slice(0, 200);
   return withTransaction(db, () => {
@@ -96,14 +98,15 @@ function receiveStock(db, payload = {}, actor = 'system') {
         unitCost: r.unitCost,
       });
     }
-    audit.append({ actor, operation: 'stock.receive', entityType: 'purchase_receipt', entityId: receipt.id, details: `receipt_no=${receiptNo} lines=${resolved.length}` });
+    audit.append({ actor: auth.actor, operation: 'stock.receive', entityType: 'purchase_receipt', entityId: receipt.id, details: `receipt_no=${receiptNo} lines=${resolved.length}`, after: `status=posted lines=${resolved.length}`, referenceNo: receiptNo });
     return receipts.getWithLines(receipt.id);
   });
 }
 
 // Cancels a POSTED receipt by appending exact reversal movements.
 // The original lines stay untouched; stock returns to its pre-receipt level.
-function cancelReceipt(db, receiptId, reason = '', actor = 'system') {
+function cancelReceipt(db, receiptId, reason = '', actorOrAuth = 'system') {
+  const auth = requirePermission(normalizeAuth(actorOrAuth), 'purchases.cancel');
   const why = cleanText(reason);
   if (!why) throw new ValidationError('a cancel reason is required');
   return withTransaction(db, () => {
@@ -125,7 +128,7 @@ function cancelReceipt(db, receiptId, reason = '', actor = 'system') {
       });
     }
     const cancelled = receipts.markCancelled(current.id, why.slice(0, 1000));
-    audit.append({ actor, operation: 'stock.receipt_cancel', entityType: 'purchase_receipt', entityId: current.id, details: `receipt_no=${current.receipt_no} reason=${why.slice(0, 200)}` });
+    audit.append({ actor: auth.actor, operation: 'stock.receipt_cancel', entityType: 'purchase_receipt', entityId: current.id, details: `receipt_no=${current.receipt_no} reason=${why.slice(0, 200)}`, before: 'status=posted', after: 'status=cancelled', reason: why.slice(0, 1000), referenceNo: current.receipt_no });
     return { ...cancelled, lines: current.lines };
   });
 }

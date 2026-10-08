@@ -21,5 +21,8 @@ class ConflictError extends DomainError {
 class StateError extends DomainError {
   constructor(message) { super('INVALID_STATE', message); }
 }
+class ForbiddenError extends DomainError {
+  constructor(message) { super('FORBIDDEN', message); }
+}
 
-module.exports = { DomainError, ValidationError, NotFoundError, ConflictError, StateError };
+module.exports = { DomainError, ValidationError, NotFoundError, ConflictError, StateError, ForbiddenError };

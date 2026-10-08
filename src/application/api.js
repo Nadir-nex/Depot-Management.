@@ -19,18 +19,20 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
   const effectivePath = typeof dbOrPath === 'string' ? dbOrPath : (dbPathForBackup || null);
   if (migrateOnStart) migrate(db, { dbPath: effectivePath, backup: Boolean(effectivePath) });
 
-  const actorOf = (a) => (typeof a === 'string' && a.trim() ? a.trim().slice(0, 120) : 'system');
-
+  // Auth passes through untouched: string actor = trusted server-side shorthand
+  // (full grants); { actor, grants } object = explicit grants from the session.
+  // Commands normalize + enforce via requirePermission(). Transports must NEVER
+  // upgrade grants here — main.js builds server-side auth from a bare name.
   return {
     db,
     close() { closeDatabase(db); },
 
     commands: {
-      createProduct: (input, actor) => productsApp.createProduct(db, input, actorOf(actor)),
-      setProductActive: (id, active, actor) => productsApp.setProductActive(db, id, active, actorOf(actor)),
-      deleteProduct: (id, actor) => productsApp.deleteProduct(db, id, actorOf(actor)),
-      receiveStock: (payload, actor) => inventoryApp.receiveStock(db, payload, actorOf(actor)),
-      cancelReceipt: (id, reason, actor) => inventoryApp.cancelReceipt(db, id, reason, actorOf(actor)),
+      createProduct: (input, auth) => productsApp.createProduct(db, input, auth),
+      setProductActive: (id, active, auth) => productsApp.setProductActive(db, id, active, auth),
+      deleteProduct: (id, auth) => productsApp.deleteProduct(db, id, auth),
+      receiveStock: (payload, auth) => inventoryApp.receiveStock(db, payload, auth),
+      cancelReceipt: (id, reason, auth) => inventoryApp.cancelReceipt(db, id, reason, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();

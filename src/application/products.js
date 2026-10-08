@@ -2,6 +2,7 @@
 // Product use-cases. Owns the transaction boundary for product writes and maps
 // storage errors to the shared domain error contract. No Electron, no fs.
 const { ConflictError } = require('../domain/errors');
+const { normalizeAuth, requirePermission } = require('../domain/permissions');
 const { toProductInput } = require('../domain/products');
 const { createProductRepository } = require('../data/productRepository');
 const { createAuditRepository } = require('../data/stockRepository');
@@ -18,14 +19,15 @@ function describeUnique(err) {
   return 'duplicate value violates a uniqueness rule';
 }
 
-function createProduct(db, rawInput, actor = 'system') {
+function createProduct(db, rawInput, actorOrAuth = 'system') {
+  const auth = requirePermission(normalizeAuth(actorOrAuth), 'products.edit');
   const input = toProductInput(rawInput);
   return withTransaction(db, () => {
     const products = createProductRepository(db);
     const audit = createAuditRepository(db);
     try {
       const created = products.insert(input);
-      audit.append({ actor, operation: 'product.create', entityType: 'product', entityId: created.id, details: `sku=${created.sku}` });
+      audit.append({ actor: auth.actor, operation: 'product.create', entityType: 'product', entityId: created.id, details: `sku=${created.sku}`, after: `sku=${created.sku} name=${created.name}`, referenceNo: created.sku });
       return created;
     } catch (err) {
       if (isUniqueViolation(err)) throw new ConflictError(describeUnique(err));
@@ -42,12 +44,16 @@ function getProduct(db, id) {
   return createProductRepository(db).getById(id);
 }
 
-function setProductActive(db, id, active, actor = 'system') {
+function setProductActive(db, id, active, actorOrAuth = 'system') {
+  const auth = requirePermission(normalizeAuth(actorOrAuth), 'products.edit');
   return withTransaction(db, () => {
+    const before = createProductRepository(db).getById(id);
     const updated = createProductRepository(db).setActive(id, active);
     createAuditRepository(db).append({
-      actor, operation: active ? 'product.reactivate' : 'product.deactivate',
+      actor: auth.actor, operation: active ? 'product.reactivate' : 'product.deactivate',
       entityType: 'product', entityId: id, details: `sku=${updated.sku}`,
+      before: `isActive=${before.isActive}`, after: `isActive=${updated.isActive}`,
+      referenceNo: updated.sku,
     });
     return updated;
   });
@@ -56,7 +62,8 @@ function setProductActive(db, id, active, actor = 'system') {
 // Retention policy: history-bearing products are deactivated, never deleted.
 // deleteProduct() hard-deletes only unreferenced rows; otherwise it throws a
 // ConflictError telling the caller to deactivate.
-function deleteProduct(db, id, actor = 'system') {
+function deleteProduct(db, id, actorOrAuth = 'system') {
+  const auth = requirePermission(normalizeAuth(actorOrAuth), 'products.edit');
   return withTransaction(db, () => {
     const products = createProductRepository(db);
     const current = products.getById(id);
@@ -64,7 +71,7 @@ function deleteProduct(db, id, actor = 'system') {
       throw new ConflictError(`product ${current.sku} has receipts/movements and cannot be deleted; deactivate it instead`);
     }
     products.remove(id);
-    createAuditRepository(db).append({ actor, operation: 'product.delete', entityType: 'product', entityId: id, details: `sku=${current.sku}` });
+    createAuditRepository(db).append({ actor: auth.actor, operation: 'product.delete', entityType: 'product', entityId: id, details: `sku=${current.sku}`, before: `sku=${current.sku} name=${current.name}`, referenceNo: current.sku });
     return true;
   });
 }

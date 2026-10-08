@@ -2,6 +2,7 @@
 // Warehouse + stock-movement + receipt + audit repositories. Raw SQL only.
 const { NotFoundError } = require('../domain/errors');
 const { utcNowIso } = require('../db');
+const { isAuditOperation } = require('../domain/vocabulary');
 
 function createWarehouseRepository(db) {
   return {
@@ -117,10 +118,19 @@ function createReceiptRepository(db) {
 function createAuditRepository(db) {
   return {
     // Append-only: there is deliberately no update() or delete().
-    append({ actor = 'system', operation, entityType, entityId = null, details = '' }) {
+    // before/after are short state sketches, reason is mandatory for
+    // cancellations, referenceNo is the human document number. operation must
+    // match the vocabulary audit convention (<area>.<action>).
+    append({ actor = 'system', operation, entityType, entityId = null, details = '', before = '', after = '', reason = '', referenceNo = '' }) {
+      if (!isAuditOperation(operation)) throw new Error(`invalid audit operation: ${operation}`);
       db.prepare(
-        'INSERT INTO audit_log (occurred_at, actor, operation, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(utcNowIso(), actor, operation, entityType, entityId, details);
+        `INSERT INTO audit_log
+           (occurred_at, actor, operation, entity_type, entity_id, details,
+            before_summary, after_summary, reason, reference_no)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(utcNowIso(), actor, operation, entityType, entityId, details,
+        String(before).slice(0, 500), String(after).slice(0, 500),
+        String(reason).slice(0, 1000), String(referenceNo).slice(0, 64));
     },
     recent({ limit = 100 } = {}) {
       return db.prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?').all(limit);
