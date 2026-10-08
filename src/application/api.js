@@ -22,6 +22,7 @@ const salesApp = require('./sales');
 const purchasesApp = require('./purchases');
 const returnsApp = require('./returns');
 const paymentsApp = require('./payments');
+const expensesApp = require('./expenses');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -93,6 +94,10 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       createCashAccount: (input, auth) => paymentsApp.createCashAccount(db, input, auth),
       openCashSession: (accountId, input, auth) => paymentsApp.openCashSession(db, accountId, input, auth),
       closeCashSession: (id, input, auth) => paymentsApp.closeCashSession(db, id, input, auth),
+      createExpenseCategory: (input, auth) => expensesApp.createExpenseCategory(db, input, auth),
+      deleteExpenseCategory: (id, auth) => expensesApp.deleteExpenseCategory(db, id, auth),
+      createExpense: (input, auth) => expensesApp.createExpense(db, input, auth),
+      reverseExpense: (id, reason, auth) => expensesApp.reverseExpense(db, id, reason, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -135,6 +140,10 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       listCashAccounts: () => paymentsApp.listCashAccounts(db),
       sessionReport: (id) => paymentsApp.sessionReport(db, id),
       partyBalance: (partyId) => paymentsApp.getPartyBalance(db, partyId),
+      listExpenseCategories: () => expensesApp.listExpenseCategories(db),
+      listExpenses: (opts) => expensesApp.listExpenses(db, opts),
+      getExpense: (id) => expensesApp.getExpense(db, id),
+      expenseReport: (opts) => expensesApp.expenseReport(db, opts),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };

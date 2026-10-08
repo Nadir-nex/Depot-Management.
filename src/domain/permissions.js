@@ -29,7 +29,7 @@ const PERMISSIONS = Object.freeze({
   'sales.cancel': Object.freeze({ description: 'Cancel sales documents (reserved)', enforced: 'P15' }),
   'payments.record': Object.freeze({ description: 'Record payments (reserved)', enforced: 'P16' }),
   'payments.reverse': Object.freeze({ description: 'Reverse payments (reserved)', enforced: 'P16' }),
-  'cash.manage': Object.freeze({ description: 'Manage cash accounts and sessions', enforced: 'P16' }),
+  'cash.manage': Object.freeze({ description: 'Manage cash accounts, sessions and expenses', enforced: 'P16' }),
   'customers.edit': Object.freeze({ description: 'Edit customers/parties (reserved)', enforced: 'P11' }),
   'credit.override': Object.freeze({ description: 'Override credit limits (reserved)', enforced: 'P11' }),
   'deliveries.create': Object.freeze({ description: 'Create deliveries/routes (reserved)', enforced: 'P19' }),

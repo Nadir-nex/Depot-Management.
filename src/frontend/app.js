@@ -39,6 +39,9 @@
       postCustomerReturn: (id, input) => post('returns:post', { id, input }),
       recordPayment: (input) => post('payments:record', { input }),
       listPayments: () => post('payments:list', {}),
+      listExpenseCategories: () => post('expenses:categories', {}),
+      createExpense: (input) => post('expenses:create', { input }),
+      listExpenses: () => post('expenses:list', {}),
     };
   }
 
@@ -63,6 +66,7 @@
     await refreshSales();
     await refreshPOs();
     await refreshPayments();
+    await refreshExpenses();
     const stockWh = document.getElementById('stock-warehouse');
     const warehouse = stockWh && stockWh.value ? stockWh.value : 'MAIN';
     const stockBody = document.getElementById('stock-body');
@@ -261,8 +265,7 @@
     }
   }
 
-  async function refreshPayments() {
-    const body = document.getElementById('payments-body');
+  async function refreshPayments() {    const body = document.getElementById('payments-body');
     if (!body || typeof api.listPayments !== 'function') return;
     try {
       const rows = await unwrap(api.listPayments({}));
@@ -273,6 +276,50 @@
       body.innerHTML = `<tr><td colspan="4">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
     }
   }
+
+  async function refreshExpenses() {
+    const body = document.getElementById('expenses-body');
+    if (!body) return;
+    try {
+      if (typeof api.listExpenses !== 'function') throw new Error('expenses need the desktop API');
+      const rows = await unwrap(api.listExpenses({}));
+      body.innerHTML = rows.length
+        ? rows.slice(0, 20).map((x) => `<tr><td>${escapeHtml(x.expense_no)}</td><td>${escapeHtml(x.category_code || x.category_id)}</td><td>${x.amount}</td><td>${escapeHtml(x.status)}</td></tr>`).join('')
+        : '<tr><td colspan="4">لا توجد مصاريف بعد.</td></tr>';
+      if (typeof api.listExpenseCategories === 'function') {
+        const cats = await unwrap(api.listExpenseCategories());
+        const sel = document.querySelector('select[name="categoryCode"]');
+        if (sel && cats.length) {
+          const keep = sel.value;
+          sel.innerHTML = cats.map((c) => `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)}</option>`).join('');
+          sel.value = [...sel.options].some((o) => o.value === keep) ? keep : sel.options[0].value;
+        }
+      }
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="4">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  document.getElementById('expense-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('expense-msg');
+    const fd = new FormData(e.target);
+    try {
+      if (typeof api.createExpense !== 'function') throw new Error('expenses need the desktop API');
+      const created = await unwrap(api.createExpense({
+        categoryCode: String(fd.get('categoryCode') || 'OTHER'),
+        amount: Number(String(fd.get('amount') || '').trim()),
+        method: String(fd.get('method') || 'cash'),
+        cashAccountCode: String(fd.get('cashAccountCode') || '').trim() || null,
+        notes: String(fd.get('notes') || '').trim(),
+      }));
+      show(msg, true, `تم تسجيل المصروف ${created.expense_no}.`);
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل التسجيل: ${err.message}`);
+    }
+  });
 
   document.getElementById('po-body').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-po-action]');
