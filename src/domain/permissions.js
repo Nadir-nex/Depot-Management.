@@ -19,6 +19,8 @@ const PERMISSIONS = Object.freeze({
   'stock.view': Object.freeze({ description: 'Read stock and movements', enforced: 'open-read' }),
   'stock.adjust': Object.freeze({ description: 'Manual stock adjustments (reserved)', enforced: 'P09' }),
   'stock.transfer': Object.freeze({ description: 'Transfer stock between warehouses (reserved)', enforced: 'P09' }),
+  'warehouses.view': Object.freeze({ description: 'Read warehouses', enforced: 'open-read' }),
+  'warehouses.edit': Object.freeze({ description: 'Create/deactivate/delete warehouses', enforced: 'P08' }),
   'purchases.create': Object.freeze({ description: 'Draft purchase documents (reserved)', enforced: 'P14' }),
   'purchases.post': Object.freeze({ description: 'Post a purchase receipt (receive stock)', enforced: 'P04' }),
   'purchases.cancel': Object.freeze({ description: 'Cancel a posted purchase receipt', enforced: 'P04' }),

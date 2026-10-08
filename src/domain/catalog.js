@@ -56,7 +56,21 @@ function validateBarcodeCode(code) {
   return c; // exact match semantics: codes are case-sensitive, never normalized
 }
 
-// Packs of base pieces. Exact integer multiplication — always reversible.
+// --- Warehouses (P08): codes are normalized uppercase registry keys. ---
+function validateWarehouseCode(code) {
+  const c = cleanText(code).toUpperCase();
+  if (!c) throw new ValidationError('warehouse code is required');
+  if (c.length > 16) throw new ValidationError('warehouse code must be at most 16 characters');
+  if (!/^[A-Z0-9][A-Z0-9._-]*$/.test(c)) throw new ValidationError('warehouse code must be alphanumeric with . _ - separators');
+  return c;
+}
+
+function validateWarehouseName(name) {
+  const n = cleanText(name);
+  if (!n) throw new ValidationError('warehouse name is required');
+  if (n.length > 100) throw new ValidationError('warehouse name must be at most 100 characters');
+  return n;
+}
 function toBasePieces(packs, qtyPerPack) {
   if (!Number.isInteger(packs) || packs <= 0) throw new ValidationError('pack count must be a positive integer');
   return packs * validateQtyPerPack(qtyPerPack);
@@ -79,6 +93,8 @@ module.exports = {
   validatePackName,
   validateQtyPerPack,
   validateBarcodeCode,
+  validateWarehouseCode,
+  validateWarehouseName,
   toBasePieces,
   toPacksExact,
 };

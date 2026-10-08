@@ -110,6 +110,10 @@ const LIST_SCOPES = freezeValues({
   CUSTOMER: 'customer',
 });
 
+// --- Warehouses (P08 owns locations; the MAIN bootstrap code is frozen here
+// so no module invents its own default) ---
+const MAIN_WAREHOUSE_CODE = 'MAIN';
+
 // --- Money: integer minor units, one currency until P16 says otherwise ---
 const MONEY = Object.freeze({
   CURRENCY: 'DZD',
@@ -198,6 +202,7 @@ module.exports = {
   TAX_CLASSES,
   PRICE_SOURCES,
   LIST_SCOPES,
+  MAIN_WAREHOUSE_CODE,
   MONEY,
   TIME,
   CORE_CONCEPTS,

@@ -6,6 +6,7 @@
 // beyond the repository calls (repositories own the SQL).
 const { ValidationError, NotFoundError, StateError } = require('../domain/errors');
 const { normalizeAuth, requirePermission } = require('../domain/permissions');
+const { MAIN_WAREHOUSE_CODE } = require('../domain/vocabulary');
 const { validateReceiptLines, assertReceiptCancellable, reversalOf } = require('../domain/inventory');
 const { toBasePieces } = require('../domain/catalog');
 const { validateUnitCost } = require('../domain/products');
@@ -25,7 +26,7 @@ function cleanText(v) {
 
 function resolveWarehouse(warehouses, ref) {
   if (ref.id !== undefined && ref.id !== null) return warehouses.getById(ref.id);
-  const code = cleanText(ref.code || ref.warehouseCode || 'MAIN') || 'MAIN';
+  const code = cleanText(ref.code || ref.warehouseCode || MAIN_WAREHOUSE_CODE) || MAIN_WAREHOUSE_CODE;
   const w = warehouses.getByCode(code);
   if (!w) throw new NotFoundError(`warehouse ${code} not found`);
   return w;
@@ -68,8 +69,11 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
 
     const warehouse = resolveWarehouse(warehouses, {
       id: payload.warehouseId ?? payload.warehouse_id ?? null,
-      code: payload.warehouseCode ?? payload.warehouse_code ?? 'MAIN',
+      code: payload.warehouseCode ?? payload.warehouse_code ?? MAIN_WAREHOUSE_CODE,
     });
+    if (warehouse.is_active !== 1) {
+      throw new StateError(`warehouse ${warehouse.code} is inactive and cannot receive stock`);
+    }
     const receiptNo = buildReceiptNo(receipts, payload.receiptNo ?? payload.receipt_no);
 
     const resolved = lines.map((l) => {
@@ -151,7 +155,7 @@ function getStock(db, productId, warehouseId) {
   return createStockRepository(db).stockOf(productId, warehouseId);
 }
 
-function listStock(db, warehouseCodeOrId = 'MAIN') {
+function listStock(db, warehouseCodeOrId = MAIN_WAREHOUSE_CODE) {
   const warehouses = createWarehouseRepository(db);
   const w = typeof warehouseCodeOrId === 'number'
     ? warehouses.getById(warehouseCodeOrId)

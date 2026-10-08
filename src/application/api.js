@@ -13,6 +13,7 @@ const productsApp = require('./products');
 const inventoryApp = require('./inventory');
 const catalogApp = require('./catalog');
 const pricingApp = require('./pricing');
+const warehousesApp = require('./warehouses');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -47,6 +48,9 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       deletePriceList: (id, auth) => pricingApp.deletePriceList(db, id, auth),
       setPriceLine: (listId, input, auth) => pricingApp.setPriceLine(db, listId, input, auth),
       removePriceLine: (listId, input, auth) => pricingApp.removePriceLine(db, listId, input, auth),
+      createWarehouse: (input, auth) => warehousesApp.createWarehouse(db, input, auth),
+      setWarehouseActive: (id, active, auth) => warehousesApp.setWarehouseActive(db, id, active, auth),
+      deleteWarehouse: (id, auth) => warehousesApp.deleteWarehouse(db, id, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -71,6 +75,8 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       listPriceLists: () => pricingApp.listPriceLists(db),
       getPriceList: (id) => pricingApp.getPriceList(db, id),
       resolveSalePrice: (args) => pricingApp.resolveSalePrice(db, args),
+      listWarehouses: () => warehousesApp.listWarehouses(db),
+      getWarehouse: (id) => warehousesApp.getWarehouse(db, id),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };

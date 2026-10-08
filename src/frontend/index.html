@@ -30,7 +30,7 @@
       <section class="card">
         <h2>استلام مخزون (سند شراء)</h2>
         <form id="receipt-form">
-          <label>المورّد<input name="supplierName" maxlength="200" placeholder="مثلا: مورّد الجملة" /></label>
+          <label>المستودع<select name="warehouseCode"><option value="MAIN">MAIN</option></select></label>          <label>المورّد<input name="supplierName" maxlength="200" placeholder="مثلا: مورّد الجملة" /></label>
           <label>SKU المنتج<input name="sku" required placeholder="مثلا: SUGAR-1KG" /></label>
           <label>الكمية<input name="qty" required inputmode="numeric" value="10" /></label>
           <label>تكلفة الوحدة (سنتيم)<input name="unitCost" inputmode="numeric" value="0" /></label>
@@ -42,6 +42,7 @@
         <h2>المخزون (مشتق من حركات حقيقية)</h2>
         <div class="row">
           <button id="refresh" type="button">تحديث</button>
+          <select id="stock-warehouse"><option value="MAIN">MAIN</option></select>
           <span class="hint">stock = SUM(stock_movements.qty)</span>
         </div>
         <table>

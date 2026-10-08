@@ -18,7 +18,7 @@ describe('auth', () => {
 
   it('freezes a permission catalog covering every capability family', () => {
     assert.ok(Object.isFrozen(PERMISSIONS));
-    for (const k of ['products.edit', 'purchases.post', 'purchases.cancel', 'sales.post',
+    for (const k of ['products.edit', 'purchases.post', 'purchases.cancel', 'warehouses.edit', 'sales.post',
       'payments.record', 'customers.edit', 'deliveries.complete', 'reports.view',
       'admin.backup', 'stock.transfer', 'pricing.edit', 'credit.override']) {
       assert.ok(PERMISSIONS[k], `missing permission ${k}`);

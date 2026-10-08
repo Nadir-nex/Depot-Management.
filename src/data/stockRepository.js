@@ -6,13 +6,21 @@ const { isAuditOperation } = require('../domain/vocabulary');
 
 function createWarehouseRepository(db) {
   return {
+    insert({ code, name }) {
+      const now = utcNowIso();
+      const info = db.prepare(
+        'INSERT INTO warehouses (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, ?, ?)'
+      ).run(code, name, now, now);
+      return this.getById(Number(info.lastInsertRowid));
+    },
     ensureMain() {
-      const existing = db.prepare("SELECT * FROM warehouses WHERE code = 'MAIN'").get();
+      const { MAIN_WAREHOUSE_CODE } = require('../domain/vocabulary');
+      const existing = db.prepare('SELECT * FROM warehouses WHERE code = ?').get(MAIN_WAREHOUSE_CODE);
       if (existing) return existing;
       const now = utcNowIso();
       const info = db.prepare(
-        'INSERT INTO warehouses (code, name, created_at, updated_at) VALUES (?, ?, ?, ?)'
-      ).run('MAIN', 'Main depot', now, now);
+        'INSERT INTO warehouses (code, name, is_active, created_at, updated_at) VALUES (?, ?, 1, ?, ?)'
+      ).run(MAIN_WAREHOUSE_CODE, 'Main depot', now, now);
       return db.prepare('SELECT * FROM warehouses WHERE id = ?').get(Number(info.lastInsertRowid));
     },
     getById(id) {
@@ -25,6 +33,24 @@ function createWarehouseRepository(db) {
     },
     list() {
       return db.prepare('SELECT * FROM warehouses ORDER BY code').all();
+    },
+    setActive(id, active) {
+      const info = db.prepare('UPDATE warehouses SET is_active = ?, updated_at = ? WHERE id = ?')
+        .run(active ? 1 : 0, utcNowIso(), id);
+      if (info.changes === 0) throw new NotFoundError(`warehouse ${id} not found`);
+      return this.getById(id);
+    },
+    remove(id) {
+      const info = db.prepare('DELETE FROM warehouses WHERE id = ?').run(id);
+      if (info.changes === 0) throw new NotFoundError(`warehouse ${id} not found`);
+      return true;
+    },
+    // Any movement or receipt referencing the warehouse blocks deletion.
+    isReferenced(id) {
+      const mov = db.prepare('SELECT 1 FROM stock_movements WHERE warehouse_id = ? LIMIT 1').get(id);
+      if (mov) return true;
+      const rec = db.prepare('SELECT 1 FROM purchase_receipts WHERE warehouse_id = ? LIMIT 1').get(id);
+      return Boolean(rec);
     },
   };
 }

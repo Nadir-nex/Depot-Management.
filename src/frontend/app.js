@@ -23,6 +23,7 @@
       listStock: (w) => post('stock:list', { warehouse: w }),
       listReceipts: () => post('receipts:list', {}),
       listCategories: () => post('categories:list', {}),
+      listWarehouses: () => post('warehouses:list', {}),
     };
   }
 
@@ -42,10 +43,13 @@
 
   async function refresh() {
     await refreshCategories();
+    await refreshWarehouses();
+    const stockWh = document.getElementById('stock-warehouse');
+    const warehouse = stockWh && stockWh.value ? stockWh.value : 'MAIN';
     const stockBody = document.getElementById('stock-body');
     const receiptsBody = document.getElementById('receipts-body');
     try {
-      const stock = await unwrap(api.listStock('MAIN'));
+      const stock = await unwrap(api.listStock(warehouse));
       const rows = stock.rows || stock;
       stockBody.innerHTML = rows.length
         ? rows.map((r) => `<tr><td>${escapeHtml(r.sku)}</td><td>${escapeHtml(r.name)}</td><td>${r.stock}</td><td>${r.default_sale_price}</td></tr>`).join('')
@@ -80,6 +84,24 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  async function refreshWarehouses() {
+    if (typeof api.listWarehouses !== 'function') return;
+    try {
+      const list = await unwrap(api.listWarehouses());
+      const active = list.filter((w) => w.is_active === 1 || w.is_active === undefined);
+      const fill = (sel, keepFirst) => {
+        if (!sel || active.length === 0) return;
+        const keep = sel.value;
+        sel.innerHTML = (keepFirst ? '<option value="">—</option>' : '') + active.map((w) =>
+          `<option value="${escapeHtml(w.code)}">${escapeHtml(w.code)}</option>`).join('');
+        const stillThere = [...sel.options].some((o) => o.value === keep);
+        sel.value = stillThere ? keep : sel.options[0].value;
+      };
+      fill(document.querySelector('select[name="warehouseCode"]'), false);
+      fill(document.getElementById('stock-warehouse'), false);
+    } catch (e) { /* warehouse selects keep their MAIN default */ }
+  }
+
   document.getElementById('product-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const msg = document.getElementById('product-msg');
@@ -108,7 +130,7 @@
     const fd = new FormData(e.target);
     try {
       const receipt = await unwrap(api.receiveStock({
-        warehouseCode: 'MAIN',
+        warehouseCode: String(fd.get('warehouseCode') || 'MAIN').trim() || 'MAIN',
         supplierName: String(fd.get('supplierName') || ''),
         lines: [{
           sku: String(fd.get('sku') || '').trim(),
@@ -124,5 +146,6 @@
   });
 
   document.getElementById('refresh').addEventListener('click', refresh);
+  document.getElementById('stock-warehouse').addEventListener('change', refresh);
   refresh();
 })();
