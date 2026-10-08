@@ -20,6 +20,7 @@ describe('vocabulary', () => {
     assertFrozenEnum(V.DOCUMENT_STATUSES, 'DOCUMENT_STATUSES');
     assertFrozenEnum(V.PARTY_ROLES, 'PARTY_ROLES');
     assertFrozenEnum(V.MOVEMENT_TYPES, 'MOVEMENT_TYPES');
+    assertFrozenEnum(V.MOVEMENT_REASONS, 'MOVEMENT_REASONS');
     assertFrozenEnum(V.RECEIPT_STATUSES, 'RECEIPT_STATUSES');
     assertFrozenEnum(V.PRODUCT_TYPES, 'PRODUCT_TYPES');
     assertFrozenEnum(V.TAX_CLASSES, 'TAX_CLASSES');
@@ -34,8 +35,8 @@ describe('vocabulary', () => {
     assert.deepEqual([...inventory.RECEIPT_STATUSES].sort(), Object.values(V.RECEIPT_STATUSES).sort());
   });
 
-  it('stays in sync with the SQL CHECK in 002_stock.sql', () => {
-    const sql = fs.readFileSync(path.join(__dirname, '..', 'src', 'db', 'migrations', '002_stock.sql'), 'utf8');
+  it('stays in sync with the SQL CHECK in 008_stock_engine.sql', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'src', 'db', 'migrations', '008_stock_engine.sql'), 'utf8');
     for (const t of Object.values(V.MOVEMENT_TYPES)) {
       assert.ok(sql.includes(`'${t}'`), `migration must list movement type ${t}`);
     }

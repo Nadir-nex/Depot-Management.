@@ -17,6 +17,7 @@ function toRow(r) {
     defaultSalePrice: r.default_sale_price,
     taxClass: r.tax_class,
     minStock: r.min_stock,
+    allowNegativeStock: r.allow_negative_stock === 1,
     notes: r.notes,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -31,19 +32,20 @@ const UPDATE_COLUMNS = {
   defaultSalePrice: 'default_sale_price',
   taxClass: 'tax_class',
   minStock: 'min_stock',
+  allowNegativeStock: 'allow_negative_stock',
   notes: 'notes',
 };
 
 function createProductRepository(db) {
   return {
-    insert({ sku, name, categoryId = null, productType, isActive, defaultUnitCost, defaultSalePrice, taxClass, minStock, notes }) {
+    insert({ sku, name, categoryId = null, productType, isActive, defaultUnitCost, defaultSalePrice, taxClass, minStock, allowNegativeStock = false, notes }) {
       const now = utcNowIso();
       const info = db.prepare(
         `INSERT INTO products (sku, name, category_id, product_type, is_active, default_unit_cost,
-                               default_sale_price, tax_class, min_stock, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                               default_sale_price, tax_class, min_stock, allow_negative_stock, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(sku, name, categoryId, productType, isActive ? 1 : 0, defaultUnitCost,
-        defaultSalePrice, taxClass, minStock, notes, now, now);
+        defaultSalePrice, taxClass, minStock, allowNegativeStock ? 1 : 0, notes, now, now);
       return this.getById(Number(info.lastInsertRowid));
     },
     getById(id) {

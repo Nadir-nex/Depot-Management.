@@ -38,6 +38,19 @@
         </form>
         <div class="msg" id="receipt-msg"></div>
       </section>
+      <section class="card">
+        <h2>عملية مخزون (صرف / تعديل / تحويل)</h2>
+        <form id="stockop-form">
+          <label>العملية<select name="op"><option value="issue">صرف</option><option value="adjust">تعديل (+/-)</option><option value="transfer">تحويل لمستودع آخر</option></select></label>
+          <label>SKU المنتج<input name="sku" required /></label>
+          <label>المستودع (المصدر)<input name="warehouseCode" value="MAIN" /></label>
+          <label>مستودع الوجهة (للتحويل)<input name="toWarehouseCode" /></label>
+          <label>الكمية (سالب مسموح للتعديل)<input name="qty" required inputmode="numeric" /></label>
+          <label>السبب<select name="reason"><option value="correction">تصحيح</option><option value="damaged">تالف</option><option value="expired">منتهي</option><option value="lost">ضائع</option><option value="found">موجود</option></select></label>
+          <button type="submit">تنفيذ</button>
+        </form>
+        <div class="msg" id="stockop-msg"></div>
+      </section>
       <section class="card wide">
         <h2>المخزون (مشتق من حركات حقيقية)</h2>
         <div class="row">

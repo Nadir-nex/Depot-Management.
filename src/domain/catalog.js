@@ -3,7 +3,11 @@
 // Stock is kept in BASE pieces everywhere; packs convert by exact integer
 // math. toPacksExact() refuses non-divisible quantities instead of silently
 // inventing fractions — callers split or reject explicitly.
+//
+// Phase 09 additions: warehouse validators + movement reason codes live here
+// (master-data validation module); conversions stay exact and total.
 const { ValidationError } = require('./errors');
+const { MOVEMENT_REASONS } = require('./vocabulary');
 
 function cleanText(v) {
   return typeof v === 'string' ? v.trim() : '';
@@ -71,6 +75,15 @@ function validateWarehouseName(name) {
   if (n.length > 100) throw new ValidationError('warehouse name must be at most 100 characters');
   return n;
 }
+
+function validateReasonCode(reason) {
+  const r = cleanText(reason);
+  if (!r) throw new ValidationError('a movement reason is required');
+  if (!Object.values(MOVEMENT_REASONS).includes(r)) {
+    throw new ValidationError(`unknown movement reason: ${reason}`);
+  }
+  return r;
+}
 function toBasePieces(packs, qtyPerPack) {
   if (!Number.isInteger(packs) || packs <= 0) throw new ValidationError('pack count must be a positive integer');
   return packs * validateQtyPerPack(qtyPerPack);
@@ -95,6 +108,7 @@ module.exports = {
   validateBarcodeCode,
   validateWarehouseCode,
   validateWarehouseName,
+  validateReasonCode,
   toBasePieces,
   toPacksExact,
 };

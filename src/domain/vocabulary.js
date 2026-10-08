@@ -61,11 +61,26 @@ const PARTY_ROLES = freezeValues({
 });
 
 // --- Inventory: canonical movement + receipt states (P09 owns the engine) ---
-// Must stay in sync with the CHECK in src/db/migrations/002_stock.sql.
+// Must stay in sync with the CHECK in src/db/migrations/008_stock_engine.sql
+// (002 defined the original three; 008 widened the set via table rebuild).
 const MOVEMENT_TYPES = freezeValues({
   PURCHASE_RECEIPT: 'purchase_receipt',
   PURCHASE_RECEIPT_REVERSAL: 'purchase_receipt_reversal',
   ADJUSTMENT: 'adjustment',
+  ISSUE: 'issue',
+  TRANSFER_OUT: 'transfer_out',
+  TRANSFER_IN: 'transfer_in',
+  REVERSAL: 'reversal',
+});
+
+// Reason codes for manual movements. Receipts carry document context instead;
+// counts get their own reasons in P18. Validated in the application layer.
+const MOVEMENT_REASONS = freezeValues({
+  DAMAGED: 'damaged',
+  EXPIRED: 'expired',
+  LOST: 'lost',
+  FOUND: 'found',
+  CORRECTION: 'correction',
 });
 
 // Minimal receipt lifecycle used by the v0.2 slice; the generic engine (P12)
@@ -197,6 +212,7 @@ module.exports = {
   DOCUMENT_TRANSITIONS,
   PARTY_ROLES,
   MOVEMENT_TYPES,
+  MOVEMENT_REASONS,
   RECEIPT_STATUSES,
   PRODUCT_TYPES,
   TAX_CLASSES,

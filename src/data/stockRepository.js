@@ -1,8 +1,9 @@
 'use strict';
 // Warehouse + stock-movement + receipt + audit repositories. Raw SQL only.
-const { NotFoundError } = require('../domain/errors');
+const { NotFoundError, ValidationError } = require('../domain/errors');
 const { utcNowIso } = require('../db');
 const { isAuditOperation } = require('../domain/vocabulary');
+const { validateMovementType } = require('../domain/inventory');
 
 function createWarehouseRepository(db) {
   return {
@@ -57,12 +58,27 @@ function createWarehouseRepository(db) {
 
 function createStockRepository(db) {
   return {
-    insertMovement({ productId, warehouseId, qty, movementType, referenceType, referenceId, unitCost = 0, notes = '' }) {
+    // The ONLY writer of stock_movements (P09 exit gate: no quantity is ever
+    // assigned anywhere else). Validates the movement type against the single
+    // vocabulary source and the unit against the registry before inserting.
+    insertMovement({ productId, warehouseId, qty, movementType, reasonCode = null, reversesMovementId = null, referenceType = '', referenceId = 0, unitCost = 0, unitCode = 'PCS', notes = '' }) {
+      validateMovementType(movementType);
+      if (!Number.isInteger(qty) || qty === 0) {
+        throw new ValidationError('movement qty must be a non-zero integer');
+      }
+      const unit = db.prepare('SELECT code FROM units WHERE code = ?').get(unitCode);
+      if (!unit) throw new ValidationError(`unknown unit: ${unitCode}`);
+      if (reversesMovementId !== null && reversesMovementId !== undefined) {
+        const target = db.prepare('SELECT id FROM stock_movements WHERE id = ?').get(reversesMovementId);
+        if (!target) throw new NotFoundError(`reversed movement ${reversesMovementId} not found`);
+      }
       const info = db.prepare(
         `INSERT INTO stock_movements
-           (product_id, warehouse_id, qty, movement_type, reference_type, reference_id, unit_cost, notes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(productId, warehouseId, qty, movementType, referenceType, referenceId, unitCost, notes, utcNowIso());
+           (product_id, warehouse_id, qty, movement_type, reason_code, reverses_movement_id,
+            reference_type, reference_id, unit_cost, unit_code, notes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(productId, warehouseId, qty, movementType, reasonCode, reversesMovementId,
+        referenceType, referenceId, unitCost, unitCode, notes, utcNowIso());
       return Number(info.lastInsertRowid);
     },
     stockOf(productId, warehouseId) {
@@ -86,6 +102,53 @@ function createStockRepository(db) {
       if (warehouseId !== null) { conds.push('warehouse_id = ?'); params.push(warehouseId); }
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       return db.prepare(`SELECT * FROM stock_movements ${where} ORDER BY id DESC LIMIT ?`).all(...params, limit);
+    },
+    // Ledger order (oldest first) for running-balance computation by callers.
+    ledger({ productId = null, warehouseId = null, limit = 500 } = {}) {
+      const conds = [];
+      const params = [];
+      if (productId !== null) { conds.push('product_id = ?'); params.push(productId); }
+      if (warehouseId !== null) { conds.push('warehouse_id = ?'); params.push(warehouseId); }
+      const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+      return db.prepare(`SELECT * FROM stock_movements ${where} ORDER BY id ASC LIMIT ?`).all(...params, limit);
+    },
+    getMovement(id) {
+      const r = db.prepare('SELECT * FROM stock_movements WHERE id = ?').get(id);
+      if (!r) throw new NotFoundError(`stock movement ${id} not found`);
+      return r;
+    },
+    reversedBy(id) {
+      return db.prepare('SELECT * FROM stock_movements WHERE reverses_movement_id = ? ORDER BY id').all(id);
+    },
+    legsOfTransfer(transferId) {
+      return db.prepare(
+        "SELECT * FROM stock_movements WHERE reference_type = 'stock_transfer' AND reference_id = ? ORDER BY id"
+      ).all(transferId);
+    },
+  };
+}
+
+function createTransferRepository(db) {
+  return {
+    insert({ transferNo, productId, fromWarehouseId, toWarehouseId, qty, reason = '' }) {
+      const info = db.prepare(
+        `INSERT INTO stock_transfers
+           (transfer_no, product_id, from_warehouse_id, to_warehouse_id, qty, reason, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(transferNo, productId, fromWarehouseId, toWarehouseId, qty, reason, utcNowIso());
+      return this.getById(Number(info.lastInsertRowid));
+    },
+    getById(id) {
+      const r = db.prepare('SELECT * FROM stock_transfers WHERE id = ?').get(id);
+      if (!r) throw new NotFoundError(`transfer ${id} not found`);
+      return r;
+    },
+    getByNo(transferNo) {
+      return db.prepare('SELECT * FROM stock_transfers WHERE transfer_no = ?').get(transferNo) || null;
+    },
+    nextDailySequence(datePrefix) {
+      const r = db.prepare('SELECT COUNT(*) AS n FROM stock_transfers WHERE transfer_no LIKE ?').get(`${datePrefix}%`);
+      return Number(r.n) + 1;
     },
   };
 }
@@ -164,4 +227,4 @@ function createAuditRepository(db) {
   };
 }
 
-module.exports = { createWarehouseRepository, createStockRepository, createReceiptRepository, createAuditRepository };
+module.exports = { createWarehouseRepository, createStockRepository, createTransferRepository, createReceiptRepository, createAuditRepository };

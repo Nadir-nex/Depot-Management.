@@ -88,9 +88,9 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
         const pack = createPackRepository(db).getById(l.packId);
         if (pack.product_id !== product.id) throw new ValidationError('pack belongs to a different product');
         const qty = toBasePieces(l.packs, pack.qty_per_pack);
-        return { product, qty, unitCost, note: `pack=${pack.name} x${l.packs}` };
+        return { product, qty, unitCost, unitCode: pack.unit_code, note: `pack=${pack.name} x${l.packs}` };
       }
-      return { product, qty: l.qty, unitCost, note: '' };
+      return { product, qty: l.qty, unitCost, unitCode: 'PCS', note: '' };
     });
 
     let receipt;
@@ -113,6 +113,7 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
         referenceType: 'purchase_receipt',
         referenceId: receipt.id,
         unitCost: r.unitCost,
+        unitCode: r.unitCode,
         notes: r.note,
       });
     }

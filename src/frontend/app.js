@@ -147,5 +147,28 @@
 
   document.getElementById('refresh').addEventListener('click', refresh);
   document.getElementById('stock-warehouse').addEventListener('change', refresh);
+
+  document.getElementById('stockop-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('stockop-msg');
+    const fd = new FormData(e.target);
+    const op = String(fd.get('op') || 'issue');
+    const base = {
+      sku: String(fd.get('sku') || '').trim(),
+      warehouseCode: String(fd.get('warehouseCode') || 'MAIN').trim() || 'MAIN',
+      reason: String(fd.get('reason') || 'correction'),
+    };
+    const qty = Number(String(fd.get('qty') || '').trim());
+    try {
+      if (typeof api.issueStock !== 'function') throw new Error('stock operations need the desktop API');
+      if (op === 'issue') await unwrap(api.issueStock({ ...base, qty }));
+      else if (op === 'adjust') await unwrap(api.adjustStock({ ...base, qty }));
+      else await unwrap(api.transferStock({ ...base, toWarehouseCode: String(fd.get('toWarehouseCode') || '').trim(), qty: Math.abs(qty) }));
+      show(msg, true, 'تمت العملية بنجاح.');
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشلت العملية: ${err.message}`);
+    }
+  });
   refresh();
 })();
