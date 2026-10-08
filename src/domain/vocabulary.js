@@ -196,6 +196,13 @@ const STOP_FAIL_REASONS = freezeValues({
   OTHER: 'other',
 });
 
+// Derived from stop claims vs posted payment links — never stored as state.
+const SETTLEMENT_STATUSES = freezeValues({
+  OPEN: 'open',
+  PARTIAL: 'partial',
+  SETTLED: 'settled',
+});
+
 // --- Money: integer minor units, one currency until P16 says otherwise ---
 const MONEY = Object.freeze({
   CURRENCY: 'DZD',
@@ -288,6 +295,7 @@ module.exports = {
   ROUTE_TRANSITIONS,
   ROUTE_STOP_STATUSES,
   STOP_FAIL_REASONS,
+  SETTLEMENT_STATUSES,
   RECEIPT_STATUSES,
   PRODUCT_TYPES,
   TAX_CLASSES,

@@ -39,6 +39,7 @@
       postCustomerReturn: (id, input) => post('returns:post', { id, input }),
       recordPayment: (input) => post('payments:record', { input }),
       listPayments: () => post('payments:list', {}),
+      listCashAccounts: () => post('cash:accounts', {}),
       listExpenseCategories: () => post('expenses:categories', {}),
       createExpense: (input) => post('expenses:create', { input }),
       listExpenses: () => post('expenses:list', {}),
@@ -66,6 +67,8 @@
       completeRoute: (id, to) => post('routes:complete', { id, to }),
       cancelRoute: (id, reason) => post('routes:cancel', { id, reason }),
       reserveStock: (routeId, input) => post('loading:reserve', { routeId, input }),
+      settleStop: (stopId, input) => post('settlements:settle', { stopId, input }),
+      routeReconciliation: (routeId) => post('settlements:reconciliation', { routeId }),
     };
   }
 
@@ -411,14 +414,18 @@
   async function showRouteDetail(id) {
     const panel = document.getElementById('route-detail');
     const full = await unwrap(api.getRoute(id));
+    const rec = await unwrap(api.routeReconciliation(id));
     panel.style.display = 'block';
-    document.getElementById('route-title').textContent = `الطريق ${full.route_no} (${full.status})`;
+    document.getElementById('route-title').textContent =
+      `الطريق ${full.route_no} (${full.status}) — تحصيل: ${rec.claim} / مسواّى ${rec.settled} / متبقٍ ${rec.outstanding}`;
+    const outByStop = new Map(rec.stops.map((s) => [s.stop_id, s.outstanding]));
     await fillCrewSelects(full);
     document.getElementById('stops-body').innerHTML = full.stops.length
       ? full.stops.map((s) => {
+          const out = outByStop.get(s.id) || 0;
           const act = s.status === 'pending'
             ? `<button data-stop-done="${s.id}">تم</button> <button data-stop-fail="${s.id}">فشل</button>`
-            : '—';
+            : (s.status === 'delivered' && out > 0 ? `<button data-stop-settle="${s.id}">تسوية ${out}</button>` : '—');
           return `<tr><td>${s.stop_no}</td><td>${escapeHtml(s.party_name || s.party_code)}</td><td>${s.delivery_doc_id || '—'}</td><td>${escapeHtml(s.status)}</td><td>${s.collected_amount}</td><td>${act}</td></tr>`;
         }).join('')
       : '<tr><td colspan="6">لا توجد توقفات.</td></tr>';
@@ -472,7 +479,12 @@
     try {
       const done = e.target.closest('[data-stop-done]');
       const fail = e.target.closest('[data-stop-fail]');
-      if (done) await unwrap(api.completeStop(Number(done.dataset.stopDone), {}));
+      const settle = e.target.closest('[data-stop-settle]');
+      if (settle) {
+        const accounts = (await unwrap(api.listCashAccounts())).filter((a) => a.is_active !== 0);
+        if (!accounts.length) throw new Error('no active cash account');
+        await unwrap(api.settleStop(Number(settle.dataset.stopSettle), { cashAccountCode: accounts[0].code }));
+      } else if (done) await unwrap(api.completeStop(Number(done.dataset.stopDone), {}));
       else if (fail) {
         const reason = prompt('سبب الفشل (customer_absent/refused/wrong_address/vehicle_issue/other):', 'customer_absent');
         if (!reason) return;

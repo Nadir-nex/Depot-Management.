@@ -25,6 +25,7 @@ const {
   createRouteStopRepository,
 } = require('../data/logisticsRepository');
 const { checkRouteCoverage, releaseReservations } = require('./loading');
+const { ensureStopSettlement } = require('./settlements');
 const { createAuditRepository } = require('../data/stockRepository');
 const { withTransaction, utcNowIso } = require('../db');
 
@@ -265,6 +266,8 @@ function completeStop(db, stopId, raw = {}, actorOrAuth = 'system') {
       status: 'delivered', collectedAmount: validateCollectedAmount(raw.collectedAmount ?? raw.collected_amount),
       proofRef: cleanText(raw.proofRef ?? raw.proof_ref ?? '').slice(0, 200),
     });
+    // Cash taken at handover becomes an open settlement claim (P21).
+    ensureStopSettlement(db, row);
     createAuditRepository(db).append({ actor: auth.actor, operation: 'route.stop_complete', entityType: 'route', entityId: route.id, details: `stop=${stop.stop_no} collected=${row.collected_amount}`, referenceNo: route.route_no });
     return row;
   });

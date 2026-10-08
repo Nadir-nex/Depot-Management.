@@ -23,6 +23,7 @@ const purchasesApp = require('./purchases');
 const returnsApp = require('./returns');
 const logisticsApp = require('./logistics');
 const loadingApp = require('./loading');
+const settlementsApp = require('./settlements');
 const paymentsApp = require('./payments');
 const expensesApp = require('./expenses');
 const countsApp = require('./counts');
@@ -110,6 +111,7 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       releaseReservations: (routeId, auth) => loadingApp.releaseReservations(db, routeId, auth),
       recordPayment: (input, auth) => paymentsApp.recordPayment(db, input, auth),
       reversePayment: (id, reason, auth) => paymentsApp.reversePayment(db, id, reason, auth),
+      settleStop: (stopId, input, auth) => settlementsApp.settleStop(db, stopId, input, auth),
       createCashAccount: (input, auth) => paymentsApp.createCashAccount(db, input, auth),
       openCashSession: (accountId, input, auth) => paymentsApp.openCashSession(db, accountId, input, auth),
       closeCashSession: (id, input, auth) => paymentsApp.closeCashSession(db, id, input, auth),
@@ -179,6 +181,8 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       getRoute: (id) => logisticsApp.getRoute(db, id),
       listReservations: (routeId) => loadingApp.listReservations(db, routeId),
       availableStock: (args) => loadingApp.availableStock(db, args),
+      getStopSettlement: (stopId) => settlementsApp.getStopSettlement(db, stopId),
+      routeReconciliation: (routeId) => settlementsApp.routeReconciliation(db, routeId),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };
