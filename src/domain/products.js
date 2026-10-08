@@ -83,6 +83,7 @@ function toProductInput(raw = {}) {
     taxClass: validateTaxClass(raw.taxClass ?? raw.tax_class),
     minStock: validateMinStock(raw.minStock ?? raw.min_stock),
     allowNegativeStock: Boolean(raw.allowNegativeStock ?? raw.allow_negative_stock ?? false),
+    serialTracking: Boolean(raw.serialTracking ?? raw.serial_tracking ?? false),
     notes: cleanText(raw.notes).slice(0, 2000),
     isActive: raw.isActive === undefined ? true : Boolean(raw.isActive),
   };
@@ -112,6 +113,9 @@ function toProductUpdate(raw = {}) {
   }
   if (raw.allowNegativeStock !== undefined || raw.allow_negative_stock !== undefined) {
     out.allowNegativeStock = Boolean(raw.allowNegativeStock ?? raw.allow_negative_stock ?? false);
+  }
+  if (raw.serialTracking !== undefined || raw.serial_tracking !== undefined) {
+    out.serialTracking = Boolean(raw.serialTracking ?? raw.serial_tracking ?? false);
   }
   if (raw.notes !== undefined) out.notes = cleanText(raw.notes).slice(0, 2000);
   if (raw.sku !== undefined) throw new ValidationError('sku is immutable; create a new product instead');

@@ -84,6 +84,34 @@ function validateReasonCode(reason) {
   }
   return r;
 }
+
+function validateLotNo(lotNo) {
+  const l = cleanText(lotNo);
+  if (!l) throw new ValidationError('lot number is required');
+  if (l.length > 64) throw new ValidationError('lot number must be at most 64 characters');
+  return l;
+}
+
+function validateSupplierRef(ref) {
+  return cleanText(ref).slice(0, 200);
+}
+
+function validateSerialCode(code) {
+  const c = cleanText(code);
+  if (!c) throw new ValidationError('serial code is required');
+  if (c.length > 64) throw new ValidationError('serial code must be at most 64 characters');
+  return c; // exact match semantics, like barcodes
+}
+
+function validateLotDates({ manufacturedDate = null, manufactured_date = null, expiryDate = null, expiry_date = null } = {}) {
+  const { validateDateString } = require('./dates');
+  const manufactured = validateDateString(manufacturedDate ?? manufactured_date, 'manufactured_date');
+  const expiry = validateDateString(expiryDate ?? expiry_date, 'expiry_date');
+  if (manufactured && expiry && manufactured > expiry) {
+    throw new ValidationError('manufactured_date cannot be after expiry_date');
+  }
+  return { manufacturedDate: manufactured, expiryDate: expiry };
+}
 function toBasePieces(packs, qtyPerPack) {
   if (!Number.isInteger(packs) || packs <= 0) throw new ValidationError('pack count must be a positive integer');
   return packs * validateQtyPerPack(qtyPerPack);
@@ -109,6 +137,10 @@ module.exports = {
   validateWarehouseCode,
   validateWarehouseName,
   validateReasonCode,
+  validateLotNo,
+  validateSupplierRef,
+  validateSerialCode,
+  validateLotDates,
   toBasePieces,
   toPacksExact,
 };

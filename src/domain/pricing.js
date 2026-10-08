@@ -4,6 +4,7 @@
 const { ValidationError } = require('./errors');
 const { LIST_SCOPES } = require('./vocabulary');
 const { assertMinorUnits } = require('./money');
+const { validateDateString } = require('./dates');
 
 function cleanText(v) {
   return typeof v === 'string' ? v.trim() : '';
@@ -39,18 +40,8 @@ function validateScope(scopeType, scopeKey) {
   return { scopeType: t, scopeKey: k };
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 function validateDate(d, field) {
-  if (d === undefined || d === null || d === '') return null;
-  const s = cleanText(d);
-  if (!DATE_RE.test(s)) throw new ValidationError(`${field} must be YYYY-MM-DD`);
-  const [y, m, day] = s.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, day));
-  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== day) {
-    throw new ValidationError(`${field} is not a real calendar date`);
-  }
-  return s;
+  return validateDateString(d, field);
 }
 
 function validateValidity(validFrom, validTo) {

@@ -61,7 +61,7 @@ function createStockRepository(db) {
     // The ONLY writer of stock_movements (P09 exit gate: no quantity is ever
     // assigned anywhere else). Validates the movement type against the single
     // vocabulary source and the unit against the registry before inserting.
-    insertMovement({ productId, warehouseId, qty, movementType, reasonCode = null, reversesMovementId = null, referenceType = '', referenceId = 0, unitCost = 0, unitCode = 'PCS', notes = '' }) {
+    insertMovement({ productId, warehouseId, qty, movementType, lotId = null, reasonCode = null, reversesMovementId = null, referenceType = '', referenceId = 0, unitCost = 0, unitCode = 'PCS', notes = '' }) {
       validateMovementType(movementType);
       if (!Number.isInteger(qty) || qty === 0) {
         throw new ValidationError('movement qty must be a non-zero integer');
@@ -74,10 +74,10 @@ function createStockRepository(db) {
       }
       const info = db.prepare(
         `INSERT INTO stock_movements
-           (product_id, warehouse_id, qty, movement_type, reason_code, reverses_movement_id,
+           (product_id, warehouse_id, qty, movement_type, lot_id, reason_code, reverses_movement_id,
             reference_type, reference_id, unit_cost, unit_code, notes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(productId, warehouseId, qty, movementType, reasonCode, reversesMovementId,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(productId, warehouseId, qty, movementType, lotId, reasonCode, reversesMovementId,
         referenceType, referenceId, unitCost, unitCode, notes, utcNowIso());
       return Number(info.lastInsertRowid);
     },
@@ -107,15 +107,35 @@ function createStockRepository(db) {
     ledger({ productId = null, warehouseId = null, limit = 500 } = {}) {
       const conds = [];
       const params = [];
-      if (productId !== null) { conds.push('product_id = ?'); params.push(productId); }
-      if (warehouseId !== null) { conds.push('warehouse_id = ?'); params.push(warehouseId); }
+      if (productId !== null) { conds.push('m.product_id = ?'); params.push(productId); }
+      if (warehouseId !== null) { conds.push('m.warehouse_id = ?'); params.push(warehouseId); }
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
-      return db.prepare(`SELECT * FROM stock_movements ${where} ORDER BY id ASC LIMIT ?`).all(...params, limit);
+      return db.prepare(
+        `SELECT m.*, k.lot_no, k.expiry_date AS lot_expiry FROM stock_movements m
+         LEFT JOIN lots k ON k.id = m.lot_id ${where} ORDER BY m.id ASC LIMIT ?`
+      ).all(...params, limit);
     },
     getMovement(id) {
       const r = db.prepare('SELECT * FROM stock_movements WHERE id = ?').get(id);
       if (!r) throw new NotFoundError(`stock movement ${id} not found`);
       return r;
+    },
+    ofReference(referenceType, referenceId) {
+      return db.prepare(
+        'SELECT * FROM stock_movements WHERE reference_type = ? AND reference_id = ? ORDER BY id'
+      ).all(referenceType, referenceId);
+    },
+    // Pool-scoped stock: one lot, or the untracked (NULL) pool. Lot pools are
+    // NOT fungible — an allocation draws only from its own pool.
+    poolStock({ productId, warehouseId, lotId = null }) {
+      if (lotId === null || lotId === undefined) {
+        return db.prepare(
+          'SELECT COALESCE(SUM(qty), 0) AS s FROM stock_movements WHERE product_id = ? AND warehouse_id = ? AND lot_id IS NULL'
+        ).get(productId, warehouseId).s;
+      }
+      return db.prepare(
+        'SELECT COALESCE(SUM(qty), 0) AS s FROM stock_movements WHERE product_id = ? AND warehouse_id = ? AND lot_id = ?'
+      ).get(productId, warehouseId, lotId).s;
     },
     reversedBy(id) {
       return db.prepare('SELECT * FROM stock_movements WHERE reverses_movement_id = ? ORDER BY id').all(id);
@@ -164,10 +184,10 @@ function createReceiptRepository(db) {
       ).run(receiptNo, warehouseId, supplierName, postedAt || now, now, now);
       return this.getById(Number(info.lastInsertRowid));
     },
-    insertLine({ receiptId, productId, qty, unitCost }) {
+    insertLine({ receiptId, productId, qty, unitCost, lotId = null }) {
       const info = db.prepare(
-        'INSERT INTO purchase_receipt_lines (receipt_id, product_id, qty, unit_cost) VALUES (?, ?, ?, ?)'
-      ).run(receiptId, productId, qty, unitCost);
+        'INSERT INTO purchase_receipt_lines (receipt_id, product_id, qty, unit_cost, lot_id) VALUES (?, ?, ?, ?, ?)'
+      ).run(receiptId, productId, qty, unitCost, lotId);
       return Number(info.lastInsertRowid);
     },
     getById(id) {

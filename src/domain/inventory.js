@@ -51,6 +51,9 @@ function validateReceiptLines(lines) {
         packId,
         packs: l.packs,
         unitCost: l.unitCost ?? l.unit_cost ?? 0,
+        lotId: l.lotId ?? l.lot_id ?? null,
+        lot: l.lot ?? null,
+        serials: l.serials ?? null,
       };
     }
     return {
@@ -58,6 +61,9 @@ function validateReceiptLines(lines) {
       sku: l.sku ?? null,
       qty: validateQty(l.qty),
       unitCost: l.unitCost ?? l.unit_cost ?? 0,
+      lotId: l.lotId ?? l.lot_id ?? null,
+      lot: l.lot ?? null,
+      serials: l.serials ?? null,
     };
   });
 }

@@ -129,6 +129,17 @@ const LIST_SCOPES = freezeValues({
 // so no module invents its own default) ---
 const MAIN_WAREHOUSE_CODE = 'MAIN';
 
+// --- Lots, expiry and serials (P10 owns the subsystem) ---
+// EXPIRY_POLICY 'block_outflow': expired lots refuse commercial outflows
+// (issue, transfer-out) but accept inflows and write-off adjustments, so
+// destruction of expired goods stays representable in the ledger.
+const EXPIRY_POLICY = 'block_outflow';
+
+const SERIAL_STATUSES = freezeValues({
+  IN_STOCK: 'in_stock',
+  OUT: 'out',
+});
+
 // --- Money: integer minor units, one currency until P16 says otherwise ---
 const MONEY = Object.freeze({
   CURRENCY: 'DZD',
@@ -213,6 +224,8 @@ module.exports = {
   PARTY_ROLES,
   MOVEMENT_TYPES,
   MOVEMENT_REASONS,
+  EXPIRY_POLICY,
+  SERIAL_STATUSES,
   RECEIPT_STATUSES,
   PRODUCT_TYPES,
   TAX_CLASSES,

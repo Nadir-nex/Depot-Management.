@@ -15,6 +15,7 @@ const catalogApp = require('./catalog');
 const pricingApp = require('./pricing');
 const warehousesApp = require('./warehouses');
 const stockApp = require('./stock');
+const lotsApp = require('./lots');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -56,6 +57,8 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       adjustStock: (args, auth) => stockApp.adjustStock(db, args, auth),
       transferStock: (args, auth) => stockApp.transferStock(db, args, auth),
       reverseStockMovement: (id, reason, auth) => stockApp.reverseStockMovement(db, id, reason, auth),
+      createLot: (productId, input, auth) => lotsApp.createLot(db, productId, input, auth),
+      deleteLot: (id, auth) => lotsApp.deleteLot(db, id, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -84,6 +87,10 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       getWarehouse: (id) => warehousesApp.getWarehouse(db, id),
       getAvailableStock: (productId, warehouseId) => stockApp.getAvailableStock(db, productId, warehouseId),
       getStockLedger: (opts) => stockApp.getStockLedger(db, opts),
+      listLots: (productId, opts) => lotsApp.listLots(db, productId, opts),
+      getLot: (id) => lotsApp.getLot(db, id),
+      suggestLots: (args) => lotsApp.suggestLots(db, args),
+      listSerials: (productId, status) => lotsApp.listSerials(db, productId, status),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };

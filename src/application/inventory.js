@@ -8,10 +8,11 @@ const { ValidationError, NotFoundError, StateError } = require('../domain/errors
 const { normalizeAuth, requirePermission } = require('../domain/permissions');
 const { MAIN_WAREHOUSE_CODE } = require('../domain/vocabulary');
 const { validateReceiptLines, assertReceiptCancellable, reversalOf } = require('../domain/inventory');
-const { toBasePieces } = require('../domain/catalog');
+const { toBasePieces, validateLotNo, validateSupplierRef, validateSerialCode, validateLotDates } = require('../domain/catalog');
 const { validateUnitCost } = require('../domain/products');
 const { createProductRepository } = require('../data/productRepository');
 const { createPackRepository } = require('../data/catalogRepository');
+const { createLotRepository, createSerialRepository } = require('../data/lotRepository');
 const {
   createWarehouseRepository,
   createStockRepository,
@@ -54,6 +55,52 @@ function buildReceiptNo(receipts, requested) {
   return `${prefix}${seq}`;
 }
 
+// Lot attachment for receipt lines: an existing lot id, or an inline spec
+// ({lotNo, expiryDate?, supplierRef?, manufacturedDate?}) resolved by
+// find-or-create within the transaction. An existing lot reused with a
+// conflicting expiry is rejected instead of silently merged.
+function resolveReceiptLot(db, product, line) {
+  const lots = createLotRepository(db);
+  const lotId = line.lotId ?? line.lot_id ?? null;
+  if (lotId !== null && lotId !== undefined) {
+    const lot = lots.getById(lotId);
+    if (lot.product_id !== product.id) throw new ValidationError('lot belongs to a different product');
+    return lot.id;
+  }
+  const spec = line.lot;
+  if (spec === undefined || spec === null) return null;
+  if (typeof spec !== 'object') throw new ValidationError('lot must be an id or a {lotNo, ...} spec');
+  const lotNo = validateLotNo(spec.lotNo ?? spec.lot_no);
+  const { manufacturedDate, expiryDate } = validateLotDates(spec);
+  const existing = lots.findByProductAndNo(product.id, lotNo);
+  if (existing) {
+    if (expiryDate && existing.expiry_date && expiryDate !== existing.expiry_date) {
+      throw new ValidationError(`lot ${lotNo} exists with a different expiry date`);
+    }
+    return existing.id;
+  }
+  return lots.insert({
+    productId: product.id, lotNo,
+    supplierRef: validateSupplierRef(spec.supplierRef ?? spec.supplier_ref),
+    manufacturedDate, expiryDate,
+  }).id;
+}
+
+// Serial codes arriving on a receipt line. Tracking products must identify
+// every piece (count == pieces); anything else carrying serials is rejected.
+function cleanReceiptSerials(raw, product, pieces) {
+  if (raw === undefined || raw === null) {
+    if (product.serialTracking) throw new ValidationError(`product ${product.sku} is serial-tracked: serials are required`);
+    return [];
+  }
+  if (!Array.isArray(raw)) throw new ValidationError('serials must be an array of codes');
+  const codes = raw.map(validateSerialCode);
+  if (new Set(codes).size !== codes.length) throw new ValidationError('duplicate serial codes in one receipt line');
+  if (!product.serialTracking) throw new ValidationError(`product ${product.sku} is not serial-tracked`);
+  if (codes.length !== pieces) throw new ValidationError(`serial count (${codes.length}) must equal pieces (${pieces})`);
+  return codes;
+}
+
 // Creates a POSTED purchase receipt: header + lines + one stock movement per
 // line, atomically. All lines must reference existing ACTIVE products.
 function receiveStock(db, payload = {}, actorOrAuth = 'system') {
@@ -83,14 +130,25 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
         throw new StateError(`product ${product.sku} is a service and carries no stock`);
       }
       const unitCost = validateUnitCost(l.unitCost);
+      let qty, unitCode, note;
       if (l.packId !== undefined && l.packId !== null) {
         // Pack presentation (P06): whole packs in, base pieces to the ledger.
         const pack = createPackRepository(db).getById(l.packId);
         if (pack.product_id !== product.id) throw new ValidationError('pack belongs to a different product');
-        const qty = toBasePieces(l.packs, pack.qty_per_pack);
-        return { product, qty, unitCost, unitCode: pack.unit_code, note: `pack=${pack.name} x${l.packs}` };
+        qty = toBasePieces(l.packs, pack.qty_per_pack);
+        unitCode = pack.unit_code;
+        note = `pack=${pack.name} x${l.packs}`;
+      } else {
+        qty = l.qty;
+        unitCode = 'PCS';
+        note = '';
       }
-      return { product, qty: l.qty, unitCost, unitCode: 'PCS', note: '' };
+      // Lot attachment (P10): existing lot id, or inline lot spec for
+      // find-or-create. Inflows accept expired lots (documenting reality);
+      // outflows enforce the expiry policy.
+      const lotId = resolveReceiptLot(db, product, l);
+      const serials = cleanReceiptSerials(l.serials, product, qty);
+      return { product, qty, unitCost, unitCode, note, lotId, serials };
     });
 
     let receipt;
@@ -104,18 +162,22 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
       throw err;
     }
     for (const r of resolved) {
-      receipts.insertLine({ receiptId: receipt.id, productId: r.product.id, qty: r.qty, unitCost: r.unitCost });
-      stock.insertMovement({
+      receipts.insertLine({ receiptId: receipt.id, productId: r.product.id, qty: r.qty, unitCost: r.unitCost, lotId: r.lotId });
+      const movementId = stock.insertMovement({
         productId: r.product.id,
         warehouseId: warehouse.id,
         qty: r.qty,
         movementType: 'purchase_receipt',
+        lotId: r.lotId,
         referenceType: 'purchase_receipt',
         referenceId: receipt.id,
         unitCost: r.unitCost,
         unitCode: r.unitCode,
         notes: r.note,
       });
+      for (const code of r.serials) {
+        createSerialRepository(db).insert({ productId: r.product.id, lotId: r.lotId, code, warehouseId: warehouse.id, movementId });
+      }
     }
     audit.append({ actor: auth.actor, operation: 'stock.receive', entityType: 'purchase_receipt', entityId: receipt.id, details: `receipt_no=${receiptNo} lines=${resolved.length}`, after: `status=posted lines=${resolved.length}`, referenceNo: receiptNo });
     return receipts.getWithLines(receipt.id);
@@ -134,18 +196,28 @@ function cancelReceipt(db, receiptId, reason = '', actorOrAuth = 'system') {
     const audit = createAuditRepository(db);
     const current = receipts.getWithLines(receiptId);
     assertReceiptCancellable(current.status);
-    for (const line of current.lines) {
-      stock.insertMovement({
+    // Lines and their original movements pair by creation order (the receive
+    // loop inserts line then movement sequentially, so both id-orders align).
+    const originals = stock.ofReference('purchase_receipt', current.id);
+    current.lines.forEach((line, i) => {
+      const reversalId = stock.insertMovement({
         productId: line.product_id,
         warehouseId: current.warehouse_id,
         qty: reversalOf(line.qty),
         movementType: 'purchase_receipt_reversal',
+        lotId: line.lot_id,
         referenceType: 'purchase_receipt',
         referenceId: current.id,
         unitCost: line.unit_cost,
         notes: `reversal of receipt ${current.receipt_no}`,
       });
-    }
+      // Serials landed by this receipt leave with the returned goods.
+      const original = originals[i];
+      if (original && original.product_id === line.product_id) {
+        const serials = createSerialRepository(db);
+        for (const s of serials.serialsRegisteredBy(original.id)) serials.consume(s.id, reversalId);
+      }
+    });
     const cancelled = receipts.markCancelled(current.id, why.slice(0, 1000));
     audit.append({ actor: auth.actor, operation: 'stock.receipt_cancel', entityType: 'purchase_receipt', entityId: current.id, details: `receipt_no=${current.receipt_no} reason=${why.slice(0, 200)}`, before: 'status=posted', after: 'status=cancelled', reason: why.slice(0, 1000), referenceNo: current.receipt_no });
     return { ...cancelled, lines: current.lines };
