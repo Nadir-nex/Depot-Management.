@@ -84,6 +84,24 @@
         </table>
       </section>
       <section class="card wide">
+        <h2>المدفوعات (قبض / دفع)</h2>
+        <form id="payment-form">
+          <label>رمز المتعامل<input name="partyCode" required /></label>
+          <label>الاتجاه<select name="direction"><option value="in">قبض من زبون</option><option value="out">دفع لمورّد</option></select></label>
+          <label>المبلغ (سنتيم)<input name="amount" required inputmode="numeric" /></label>
+          <label>الطريقة<select name="method"><option value="cash">نقدي</option><option value="bank_transfer">تحويل</option><option value="check">شيك</option></select></label>
+          <label>حساب الصندوق (للنقدي)<input name="cashAccountCode" value="TILL" /></label>
+          <label>تخصيص لـ<select name="targetType"><option value="">بدون تخصيص</option><option value="sales_invoice">فاتورة بيع</option><option value="purchase_receipt">سند استلام</option></select></label>
+          <label>رقم الهدف (ID)<input name="targetId" inputmode="numeric" /></label>
+          <button type="submit">تسجيل الدفع</button>
+        </form>
+        <div class="msg" id="payment-msg"></div>
+        <table>
+          <thead><tr><th>الرقم</th><th>الاتجاه</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+          <tbody id="payments-body"><tr><td colspan="4">…</td></tr></tbody>
+        </table>
+      </section>
+      <section class="card wide">
         <h2>المتعاملون (زبائن / مورّدون)</h2>
         <form id="party-form">
           <label>الاسم<input name="displayName" required maxlength="200" /></label>

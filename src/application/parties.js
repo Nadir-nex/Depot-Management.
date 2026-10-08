@@ -18,9 +18,9 @@ const {
   createPartyRepository,
   createPartyRoleRepository,
   createPartyPhoneRepository,
-  createPartyBalanceRepository,
 } = require('../data/partyRepository');
 const { createAuditRepository } = require('../data/stockRepository');
+const { getPartyBalance } = require('./payments');
 const { withTransaction, utcNowIso } = require('../db');
 
 function cleanText(v) {
@@ -79,14 +79,13 @@ function getParty(db, id) {
     ...party,
     roles: createPartyRoleRepository(db).ofParty(id),
     phones: createPartyPhoneRepository(db).ofParty(id),
-    balance: createPartyBalanceRepository(db).balanceOf(id),
+    balance: getPartyBalance(db, id),
   };
 }
 
 function listParties(db, opts) {
   const rows = createPartyRepository(db).list(opts);
-  const balances = createPartyBalanceRepository(db);
-  return rows.map((p) => ({ ...p, roles: createPartyRoleRepository(db).ofParty(p.id), balance: balances.balanceOf(p.id) }));
+  return rows.map((p) => ({ ...p, roles: createPartyRoleRepository(db).ofParty(p.id), balance: getPartyBalance(db, p.id) }));
 }
 
 function updateParty(db, id, raw = {}, actorOrAuth = 'system') {
@@ -183,12 +182,12 @@ function removePartyPhone(db, phoneId, actorOrAuth = 'system') {
   });
 }
 
-// Centralized credit check (pure query shape). Exposure = current customer
-// receivable + the proposed additional amount. NULL limit = unlimited.
+// Centralized credit check (pure query shape). Exposure = OUTSTANDING customer
+// receivable (net of payments) + the proposed additional amount. NULL = unlimited.
 function checkCredit(db, { partyId, additionalAmount = 0 }) {
   const party = createPartyRepository(db).getById(partyId);
   const amount = validateCreditAmount(additionalAmount);
-  const balance = createPartyBalanceRepository(db).balanceOf(partyId);
+  const balance = getPartyBalance(db, partyId);
   const exposure = balance.receivable + amount;
   if (party.creditLimit === null || party.creditLimit === undefined) {
     return { allowed: true, exposure, limit: null, balance };

@@ -14,7 +14,7 @@ describe('parties', () => {
     const c = t.app.commands.createParty({ displayName: 'بقالة النور', roles: ['customer'], phone: '+213 500 00 00' });
     assert.ok(/^CUST-\d{8}-\d{4}$/.test(c.code));
     assert.deepEqual(c.roles, ['customer']);
-    assert.deepEqual(c.balance, { receivable: 0, payable: 0, net: 0 });
+    assert.deepEqual(c.balance, { receivable: 0, payable: 0, allocatedIn: 0, allocatedOut: 0, net: 0 });
     const s = t.app.commands.createParty({ code: 'sup-7', displayName: 'Grossiste', roles: ['supplier'] });
     assert.equal(s.code, 'SUP-7');
     const both = t.app.commands.createParty({ displayName: 'Both', roles: ['customer', 'supplier'] });
@@ -51,7 +51,7 @@ describe('parties', () => {
     t.app.commands.receiveStock({ supplierPartyCode: s.code, lines: [{ productId: p.id, qty: 4, unitCost: 25 }] });
     t.app.commands.receiveStock({ supplierPartyId: s.id, lines: [{ productId: p.id, qty: 2, unitCost: 30 }] });
     const balance = t.app.queries.getParty(s.id).balance;
-    assert.deepEqual(balance, { receivable: 0, payable: 160, net: -160 });
+    assert.deepEqual(balance, { receivable: 0, payable: 160, allocatedIn: 0, allocatedOut: 0, net: -160 });
     const cols = t.app.db.prepare('PRAGMA table_info(parties)').all().map((c) => c.name);
     assert.ok(!cols.includes('balance'), 'no balance column may exist');
     // cancelled receipts leave the payable

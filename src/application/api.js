@@ -21,6 +21,7 @@ const documentsApp = require('./documents');
 const salesApp = require('./sales');
 const purchasesApp = require('./purchases');
 const returnsApp = require('./returns');
+const paymentsApp = require('./payments');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -87,6 +88,11 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       createCustomerReturn: (deliveryId, input, auth) => returnsApp.createCustomerReturn(db, deliveryId, input, auth),
       postCustomerReturn: (id, input, auth) => returnsApp.postCustomerReturn(db, id, input, auth),
       returnToSupplier: (input, auth) => returnsApp.returnToSupplier(db, input, auth),
+      recordPayment: (input, auth) => paymentsApp.recordPayment(db, input, auth),
+      reversePayment: (id, reason, auth) => paymentsApp.reversePayment(db, id, reason, auth),
+      createCashAccount: (input, auth) => paymentsApp.createCashAccount(db, input, auth),
+      openCashSession: (accountId, input, auth) => paymentsApp.openCashSession(db, accountId, input, auth),
+      closeCashSession: (id, input, auth) => paymentsApp.closeCashSession(db, id, input, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -124,6 +130,11 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       checkCredit: (args) => partiesApp.checkCredit(db, args),
       listDocuments: (opts) => documentsApp.listDocuments(db, opts),
       getDocument: (id) => documentsApp.getDocument(db, id),
+      listPayments: (opts) => paymentsApp.listPayments(db, opts),
+      getPayment: (id) => paymentsApp.getPayment(db, id),
+      listCashAccounts: () => paymentsApp.listCashAccounts(db),
+      sessionReport: (id) => paymentsApp.sessionReport(db, id),
+      partyBalance: (partyId) => paymentsApp.getPartyBalance(db, partyId),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };

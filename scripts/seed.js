@@ -17,6 +17,13 @@ function main() {
   const app = createApp(dbPath, { migrateOnStart: true, dbPathForBackup: dbPath });
   try {
     app.commands.ensureMainWarehouse('seed');
+    try {
+      app.commands.createCashAccount({ code: 'TILL', name: 'Main till (demo)' }, 'seed');
+      console.log('seeded TILL');
+    } catch (e) {
+      if (e && e.code === 'CONFLICT') console.log('exists TILL');
+      else throw e;
+    }
     for (const p of DEMO) {
       try {
         app.commands.createProduct(p, 'seed');

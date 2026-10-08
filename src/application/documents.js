@@ -309,6 +309,13 @@ function cancelDocument(db, id, reason = '', actorOrAuth = 'system') {
   if (current.docType === 'delivery_note' && current.status === 'posted') {
     throw new StateError('posted delivery notes reverse through returns (P15), not cancellation');
   }
+  if (current.docType === 'sales_invoice' && ['posted', 'partially_paid', 'paid'].includes(current.status)) {
+    // Invoices with live payment allocations cannot cancel: reverse the
+    // payments first (P16), otherwise the receivable would strand.
+    const { createAllocationRepository } = require('../data/paymentRepository');
+    const live = createAllocationRepository(db).allocatedTo('sales_invoice', id);
+    if (live > 0) throw new StateError('invoice has live payments: reverse them before cancelling');
+  }
   assertTransition(current.docType, current.status, 'cancelled');
   return withTransaction(db, () => {
     const updated = createDocumentRepository(db).setStatus(id, 'cancelled', { cancelledAt: utcNowIso(), cancelReason: why.slice(0, 1000) });

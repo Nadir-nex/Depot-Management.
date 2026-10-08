@@ -37,6 +37,8 @@
       recordSupplierInvoice: (id, input) => post('purchases:record-invoice', { id, input }),
       createCustomerReturn: (deliveryId, input) => post('returns:create', { deliveryId, input }),
       postCustomerReturn: (id, input) => post('returns:post', { id, input }),
+      recordPayment: (input) => post('payments:record', { input }),
+      listPayments: () => post('payments:list', {}),
     };
   }
 
@@ -60,6 +62,7 @@
     await refreshParties();
     await refreshSales();
     await refreshPOs();
+    await refreshPayments();
     const stockWh = document.getElementById('stock-warehouse');
     const warehouse = stockWh && stockWh.value ? stockWh.value : 'MAIN';
     const stockBody = document.getElementById('stock-body');
@@ -145,7 +148,6 @@
   function salesExtraFor(doc) {
     if (doc.status === 'posted' && doc.docType === 'delivery_note') return { action: 'return', label: 'إرجاع الكل' };
     return null;
-  }
   }
 
   async function refreshSales() {
@@ -259,6 +261,19 @@
     }
   }
 
+  async function refreshPayments() {
+    const body = document.getElementById('payments-body');
+    if (!body || typeof api.listPayments !== 'function') return;
+    try {
+      const rows = await unwrap(api.listPayments({}));
+      body.innerHTML = rows.length
+        ? rows.slice(0, 20).map((x) => `<tr><td>${escapeHtml(x.payment_no)}</td><td>${escapeHtml(x.direction)}</td><td>${x.amount}</td><td>${escapeHtml(x.status)}</td></tr>`).join('')
+        : '<tr><td colspan="4">لا توجد مدفوعات بعد.</td></tr>';
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="4">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
   document.getElementById('po-body').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-po-action]');
     if (!btn) return;
@@ -339,6 +354,35 @@
       refresh();
     } catch (err) {
       show(msg, false, `فشل الإنشاء: ${err.message}`);
+    }
+  });
+
+  document.getElementById('payment-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('payment-msg');
+    const fd = new FormData(e.target);
+    try {
+      if (typeof api.recordPayment !== 'function') throw new Error('payments need the desktop API');
+      const parties = await unwrap(api.listParties({ search: String(fd.get('partyCode') || '').trim() }));
+      const party = parties.find((x) => x.code === String(fd.get('partyCode') || '').trim());
+      if (!party) throw new Error('party not found');
+      const amount = Number(String(fd.get('amount') || '').trim());
+      const targetType = String(fd.get('targetType') || '').trim();
+      const targetIdRaw = String(fd.get('targetId') || '').trim();
+      const input = {
+        direction: String(fd.get('direction') || 'in'),
+        partyId: party.id,
+        method: String(fd.get('method') || 'cash'),
+        cashAccountCode: String(fd.get('cashAccountCode') || '').trim() || null,
+        amount,
+        allocations: targetType && targetIdRaw ? [{ targetType, targetId: Number(targetIdRaw), amount }] : [],
+      };
+      const created = await unwrap(api.recordPayment(input));
+      show(msg, true, `تم تسجيل الدفع ${created.payment_no}.`);
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل الدفع: ${err.message}`);
     }
   });
 

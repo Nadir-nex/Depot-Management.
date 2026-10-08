@@ -49,8 +49,8 @@ const DOCUMENT_TRANSITIONS = Object.freeze({
   draft: Object.freeze(['confirmed', 'cancelled']),
   confirmed: Object.freeze(['posted', 'cancelled']),
   posted: Object.freeze(['partially_paid', 'paid', 'cancelled']),
-  partially_paid: Object.freeze(['paid', 'cancelled']),
-  paid: Object.freeze([]),
+  partially_paid: Object.freeze(['paid', 'posted', 'cancelled']),
+  paid: Object.freeze(['partially_paid', 'posted', 'cancelled']),
   cancelled: Object.freeze([]),
 });
 
@@ -145,6 +145,21 @@ const SERIAL_STATUSES = freezeValues({
   OUT: 'out',
 });
 
+// --- Payments and cash (P16 owns money movement; enums frozen here) ---
+// Allocations link payments to posted invoices/receipts; unallocated
+// remainder stays explicitly on-account. Cash sessions reconcile opening +
+// signed transactions against the counted close.
+const PAYMENT_METHODS = freezeValues({
+  CASH: 'cash',
+  BANK_TRANSFER: 'bank_transfer',
+  CHECK: 'check',
+});
+
+const PAYMENT_DIRECTIONS = freezeValues({
+  IN: 'in',
+  OUT: 'out',
+});
+
 // --- Money: integer minor units, one currency until P16 says otherwise ---
 const MONEY = Object.freeze({
   CURRENCY: 'DZD',
@@ -231,6 +246,8 @@ module.exports = {
   MOVEMENT_REASONS,
   EXPIRY_POLICY,
   SERIAL_STATUSES,
+  PAYMENT_METHODS,
+  PAYMENT_DIRECTIONS,
   RECEIPT_STATUSES,
   PRODUCT_TYPES,
   TAX_CLASSES,

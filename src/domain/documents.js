@@ -24,7 +24,7 @@ const TYPE_TRANSITIONS = Object.freeze({
   sales_quote: Object.freeze({ draft: ['confirmed', 'cancelled'], confirmed: ['cancelled'] }),
   sales_order: Object.freeze({ draft: ['confirmed', 'cancelled'], confirmed: ['posted', 'cancelled'], posted: ['cancelled'] }),
   delivery_note: Object.freeze({ draft: ['confirmed', 'cancelled'], confirmed: ['posted', 'cancelled'], posted: ['cancelled'] }),
-  sales_invoice: Object.freeze({ draft: ['confirmed', 'cancelled'], confirmed: ['posted', 'cancelled'], posted: ['partially_paid', 'paid', 'cancelled'], partially_paid: ['paid', 'cancelled'] }),
+  sales_invoice: Object.freeze({ draft: ['confirmed', 'cancelled'], confirmed: ['posted', 'cancelled'], posted: ['partially_paid', 'paid', 'cancelled'], partially_paid: ['paid', 'posted', 'cancelled'], paid: ['partially_paid', 'posted', 'cancelled'] }),
   proforma_invoice: Object.freeze({ draft: ['confirmed', 'cancelled'], confirmed: ['cancelled'] }),
   purchase_order: Object.freeze({ draft: ['confirmed', 'cancelled'], confirmed: ['posted', 'cancelled'], posted: ['cancelled'] }),
   purchase_receipt: Object.freeze({ posted: ['cancelled'] }),
