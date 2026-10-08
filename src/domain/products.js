@@ -92,7 +92,8 @@ function toProductInput(raw = {}) {
 function toProductUpdate(raw = {}) {
   const out = {};
   if (raw.name !== undefined) out.name = validateName(raw.name);
-  if (raw.barcode !== undefined) out.barcode = validateBarcode(raw.barcode);
+  // barcode/categoryId are valid inputs handled by the caller (preferred-row
+  // sync / FK resolution), so they never land in `out` as columns.
   if (raw.productType !== undefined || raw.product_type !== undefined) {
     out.productType = validateProductType(raw.productType ?? raw.product_type);
   }
@@ -110,7 +111,10 @@ function toProductUpdate(raw = {}) {
   }
   if (raw.notes !== undefined) out.notes = cleanText(raw.notes).slice(0, 2000);
   if (raw.sku !== undefined) throw new ValidationError('sku is immutable; create a new product instead');
-  if (Object.keys(out).length === 0) throw new ValidationError('nothing to update');
+  // `barcode`/`categoryId` are valid inputs handled by the caller, so they
+  // satisfy the emptiness check without landing in `out` as columns.
+  const callerHandled = raw.barcode !== undefined || raw.categoryId !== undefined || raw.category_id !== undefined;
+  if (Object.keys(out).length === 0 && !callerHandled) throw new ValidationError('nothing to update');
   return out;
 }
 

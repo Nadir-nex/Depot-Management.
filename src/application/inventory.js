@@ -7,8 +7,10 @@
 const { ValidationError, NotFoundError, StateError } = require('../domain/errors');
 const { normalizeAuth, requirePermission } = require('../domain/permissions');
 const { validateReceiptLines, assertReceiptCancellable, reversalOf } = require('../domain/inventory');
+const { toBasePieces } = require('../domain/catalog');
 const { validateUnitCost } = require('../domain/products');
 const { createProductRepository } = require('../data/productRepository');
+const { createPackRepository } = require('../data/catalogRepository');
 const {
   createWarehouseRepository,
   createStockRepository,
@@ -76,7 +78,15 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
       if (product.productType === 'service') {
         throw new StateError(`product ${product.sku} is a service and carries no stock`);
       }
-      return { product, qty: l.qty, unitCost: validateUnitCost(l.unitCost) };
+      const unitCost = validateUnitCost(l.unitCost);
+      if (l.packId !== undefined && l.packId !== null) {
+        // Pack presentation (P06): whole packs in, base pieces to the ledger.
+        const pack = createPackRepository(db).getById(l.packId);
+        if (pack.product_id !== product.id) throw new ValidationError('pack belongs to a different product');
+        const qty = toBasePieces(l.packs, pack.qty_per_pack);
+        return { product, qty, unitCost, note: `pack=${pack.name} x${l.packs}` };
+      }
+      return { product, qty: l.qty, unitCost, note: '' };
     });
 
     let receipt;
@@ -99,6 +109,7 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
         referenceType: 'purchase_receipt',
         referenceId: receipt.id,
         unitCost: r.unitCost,
+        notes: r.note,
       });
     }
     audit.append({ actor: auth.actor, operation: 'stock.receive', entityType: 'purchase_receipt', entityId: receipt.id, details: `receipt_no=${receiptNo} lines=${resolved.length}`, after: `status=posted lines=${resolved.length}`, referenceNo: receiptNo });

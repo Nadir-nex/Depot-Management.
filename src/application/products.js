@@ -1,10 +1,11 @@
 'use strict';
 // Product use-cases. Owns the transaction boundary for product writes and maps
 // storage errors to the shared domain error contract. No Electron, no fs.
-const { ConflictError } = require('../domain/errors');
+const { ConflictError, NotFoundError, ValidationError } = require('../domain/errors');
 const { normalizeAuth, requirePermission } = require('../domain/permissions');
 const { toProductInput, toProductUpdate } = require('../domain/products');
 const { createProductRepository } = require('../data/productRepository');
+const { createCategoryRepository, createBarcodeRepository } = require('../data/catalogRepository');
 const { createAuditRepository } = require('../data/stockRepository');
 const { withTransaction } = require('../db');
 
@@ -15,20 +16,37 @@ function isUniqueViolation(err) {
 function describeUnique(err) {
   const msg = err.message || '';
   if (msg.includes('products.sku')) return 'sku already exists';
-  if (msg.includes('products.barcode')) return 'barcode already exists';
+  // Any uniqueness failure on the single barcode table is a duplicate code
+  // (note: the partial preferred-index reports as product_barcodes.product_id).
+  if (msg.includes('product_barcodes')) return 'barcode already exists';
   return 'duplicate value violates a uniqueness rule';
+}
+
+// category_id is a live FK reference: null clears it, otherwise it must exist.
+function resolveCategoryId(db, raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const id = typeof raw === 'string' && raw.trim() !== '' ? Number(raw.trim()) : raw;
+  if (!Number.isInteger(id)) throw new ValidationError('category_id must be an integer or null');
+  createCategoryRepository(db).getById(id); // throws NotFoundError when unknown
+  return id;
 }
 
 function createProduct(db, rawInput, actorOrAuth = 'system') {
   const auth = requirePermission(normalizeAuth(actorOrAuth), 'products.edit');
   const input = toProductInput(rawInput);
+  const categoryId = resolveCategoryId(db, rawInput.categoryId ?? rawInput.category_id);
   return withTransaction(db, () => {
     const products = createProductRepository(db);
     const audit = createAuditRepository(db);
     try {
-      const created = products.insert(input);
+      const created = products.insert({ ...input, categoryId });
+      // The single barcode input becomes the preferred barcode row; every
+      // lookup afterwards goes through product_barcodes (one system).
+      if (input.barcode) {
+        createBarcodeRepository(db).insert({ productId: created.id, code: input.barcode, preferred: true });
+      }
       audit.append({ actor: auth.actor, operation: 'product.create', entityType: 'product', entityId: created.id, details: `sku=${created.sku}`, after: `sku=${created.sku} name=${created.name}`, referenceNo: created.sku });
-      return created;
+      return products.getById(created.id);
     } catch (err) {
       if (isUniqueViolation(err)) throw new ConflictError(describeUnique(err));
       throw err;
@@ -40,24 +58,44 @@ function listProducts(db, opts) {
   return createProductRepository(db).list(opts);
 }
 
+// Rewrites the preferred barcode row: null/empty clears it (a surviving row
+// is promoted by the repository), a new code replaces it, same code = no-op.
+function syncPreferredBarcode(db, productId, rawBarcode) {
+  const { validateBarcode } = require('../domain/products');
+  const next = validateBarcode(rawBarcode);
+  const rows = createBarcodeRepository(db).listOfProduct(productId);
+  const pref = rows.find((r) => r.is_preferred === 1) || null;
+  if ((pref ? pref.code : null) === next) return;
+  if (pref) createBarcodeRepository(db).remove(pref.id);
+  if (next) createBarcodeRepository(db).insert({ productId, code: next, preferred: true });
+}
+
 // P05 catalog edit: validated subset, sku immutable, audited with before/after.
+// barcode/categoryId ride along: barcode rewrites the preferred barcode row,
+// categoryId re-links (null clears). Both stay inside the same transaction.
 function updateProduct(db, id, rawFields, actorOrAuth = 'system') {
   const auth = requirePermission(normalizeAuth(actorOrAuth), 'products.edit');
   const fields = toProductUpdate(rawFields);
+  const wantsBarcode = rawFields.barcode !== undefined;
   return withTransaction(db, () => {
     const products = createProductRepository(db);
     const before = products.getById(id);
     try {
-      const updated = products.update(id, fields);
-      const changed = Object.keys(fields).map((k) => `${k}: ${before[k]} → ${updated[k]}`).join('; ').slice(0, 400);
+      if (rawFields.categoryId !== undefined || rawFields.category_id !== undefined) {
+        fields.categoryId = resolveCategoryId(db, rawFields.categoryId ?? rawFields.category_id);
+      }
+      const updated = Object.keys(fields).length > 0 ? products.update(id, fields) : before;
+      if (wantsBarcode) syncPreferredBarcode(db, id, rawFields.barcode);
+      const after = products.getById(id);
+      const changed = Object.keys(fields).map((k) => `${k}: ${before[k]} → ${after[k]}`).join('; ').slice(0, 400);
       createAuditRepository(db).append({
         actor: auth.actor, operation: 'product.update', entityType: 'product', entityId: id,
         details: `sku=${before.sku} ${changed}`, before: `sku=${before.sku}`, after: changed,
         referenceNo: before.sku,
       });
-      return updated;
+      return after;
     } catch (err) {
-      if (err && /UNIQUE constraint failed.*barcode/i.test(err.message || '')) {
+      if (err && /UNIQUE constraint failed.*product_barcodes/i.test(err.message || '')) {
         throw new ConflictError('barcode already exists');
       }
       throw err;

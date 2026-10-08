@@ -68,7 +68,7 @@ describe('db foundation', () => {
       const itemsBefore = db.prepare('SELECT COUNT(*) n FROM items').get().n;
       assert.ok(itemsBefore > 0, 'legacy copy must contain catalog rows');
       const out = migrate(db, { dbPath: copy, backup: false });
-      assert.deepEqual(out.ran, ['001_core.sql', '002_stock.sql', '003_audit_fields.sql', '004_product_master.sql']);
+      assert.deepEqual(out.ran, ['001_core.sql', '002_stock.sql', '003_audit_fields.sql', '004_product_master.sql', '005_catalog_units.sql']);
       assert.equal(db.prepare('SELECT COUNT(*) n FROM items').get().n, itemsBefore);
       assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='products'").get());
       assert.deepEqual(migrate(db, { dbPath: copy, backup: false }).ran, []);
@@ -121,5 +121,30 @@ describe('db foundation', () => {
     } finally {
       closeTestApp(t);
     }
+  });
+
+  it('never collides with frozen legacy table names (expand-migrate-verify-cutover)', () => {
+    // Every new table must coexist with the legacy prototype schema until P22
+    // proves the migration. A collision (like categories in P06) breaks
+    // migrating the legacy database. Derived live — no hardcoded lists.
+    const namesOf = (dbPath) => {
+      const db = openDatabase(dbPath);
+      try {
+        return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all().map((r) => r.name);
+      } finally {
+        db.close();
+      }
+    };
+    const freshPath = tmpFile('collision-fresh.sqlite');
+    const fresh = openDatabase(freshPath);
+    try {
+      migrate(fresh, { dbPath: freshPath, backup: false });
+    } finally {
+      fresh.close();
+    }
+    const ours = namesOf(freshPath);
+    const legacy = namesOf(path.join(REPO_ROOT, 'db', 'database.sqlite'));
+    const clash = ours.filter((t) => legacy.includes(t));
+    assert.deepEqual(clash, [], `new tables collide with legacy: ${clash.join(', ')}`);
   });
 });

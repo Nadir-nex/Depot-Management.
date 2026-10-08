@@ -22,6 +22,7 @@
       receiveStock: (payload) => post('stock:receive', { payload }),
       listStock: (w) => post('stock:list', { warehouse: w }),
       listReceipts: () => post('receipts:list', {}),
+      listCategories: () => post('categories:list', {}),
     };
   }
 
@@ -40,6 +41,7 @@
   }
 
   async function refresh() {
+    await refreshCategories();
     const stockBody = document.getElementById('stock-body');
     const receiptsBody = document.getElementById('receipts-body');
     try {
@@ -61,6 +63,19 @@
     }
   }
 
+  async function refreshCategories() {
+    if (typeof api.listCategories !== 'function') return;
+    try {
+      const cats = await unwrap(api.listCategories());
+      const sel = document.querySelector('select[name="categoryId"]');
+      if (!sel) return;
+      const keep = sel.value;
+      sel.innerHTML = '<option value="">— بدون فئة —</option>' + cats.map((c) =>
+        `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+      sel.value = keep;
+    } catch (e) { /* categories stay empty; form still submits */ }
+  }
+
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
@@ -74,6 +89,7 @@
         sku: String(fd.get('sku') || '').trim(),
         name: String(fd.get('name') || '').trim(),
         barcode: String(fd.get('barcode') || '').trim() || null,
+        categoryId: String(fd.get('categoryId') || '').trim() === '' ? null : Number(String(fd.get('categoryId')).trim()),
         defaultUnitCost: Number(String(fd.get('defaultUnitCost') || '0').trim() || 0),
         defaultSalePrice: Number(String(fd.get('defaultSalePrice') || '0').trim() || 0),
         minStock: Number(String(fd.get('minStock') || '0').trim() || 0),

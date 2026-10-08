@@ -35,6 +35,24 @@ function validateReceiptLines(lines) {
   if (lines.length > 500) throw new ValidationError('receipt cannot contain more than 500 lines');
   return lines.map((l, i) => {
     if (!l || typeof l !== 'object') throw new ValidationError(`line ${i + 1}: invalid`);
+    const packId = l.packId ?? l.pack_id ?? null;
+    if (packId !== null && packId !== undefined) {
+      // Pack presentation: quantity arrives as whole packs; the application
+      // converts to base pieces via toBasePieces (exact integer math).
+      if (l.qty !== undefined && l.qty !== null) {
+        throw new ValidationError(`line ${i + 1}: give qty (pieces) OR packId+packs, not both`);
+      }
+      if (!Number.isInteger(l.packs) || l.packs <= 0) {
+        throw new ValidationError(`line ${i + 1}: packs must be a positive integer`);
+      }
+      return {
+        productId: l.productId ?? l.product_id ?? null,
+        sku: l.sku ?? null,
+        packId,
+        packs: l.packs,
+        unitCost: l.unitCost ?? l.unit_cost ?? 0,
+      };
+    }
     return {
       productId: l.productId ?? l.product_id ?? null,
       sku: l.sku ?? null,

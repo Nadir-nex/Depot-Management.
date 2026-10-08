@@ -10,7 +10,7 @@ function toRow(r) {
     id: r.id,
     sku: r.sku,
     name: r.name,
-    barcode: r.barcode,
+    categoryId: r.category_id,
     productType: r.product_type,
     isActive: r.is_active === 1,
     defaultUnitCost: r.default_unit_cost,
@@ -25,7 +25,7 @@ function toRow(r) {
 
 const UPDATE_COLUMNS = {
   name: 'name',
-  barcode: 'barcode',
+  categoryId: 'category_id',
   productType: 'product_type',
   defaultUnitCost: 'default_unit_cost',
   defaultSalePrice: 'default_sale_price',
@@ -36,13 +36,13 @@ const UPDATE_COLUMNS = {
 
 function createProductRepository(db) {
   return {
-    insert({ sku, name, barcode, productType, isActive, defaultUnitCost, defaultSalePrice, taxClass, minStock, notes }) {
+    insert({ sku, name, categoryId = null, productType, isActive, defaultUnitCost, defaultSalePrice, taxClass, minStock, notes }) {
       const now = utcNowIso();
       const info = db.prepare(
-        `INSERT INTO products (sku, name, barcode, product_type, is_active, default_unit_cost,
+        `INSERT INTO products (sku, name, category_id, product_type, is_active, default_unit_cost,
                                default_sale_price, tax_class, min_stock, notes, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(sku, name, barcode, productType, isActive ? 1 : 0, defaultUnitCost,
+      ).run(sku, name, categoryId, productType, isActive ? 1 : 0, defaultUnitCost,
         defaultSalePrice, taxClass, minStock, notes, now, now);
       return this.getById(Number(info.lastInsertRowid));
     },
@@ -58,7 +58,8 @@ function createProductRepository(db) {
     list({ search = '', activeOnly = false, limit = 200, offset = 0 } = {}) {
       const conds = [];
       const params = [];
-      if (search) { conds.push('(sku LIKE ? OR name LIKE ? OR COALESCE(barcode, \'\') LIKE ?)'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+      // Barcode search goes through the single product_barcodes table.
+      if (search) { conds.push('(sku LIKE ? OR name LIKE ? OR EXISTS (SELECT 1 FROM product_barcodes b WHERE b.product_id = products.id AND b.code LIKE ?))'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
       if (activeOnly) conds.push('is_active = 1');
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       return db.prepare(`SELECT * FROM products ${where} ORDER BY name LIMIT ? OFFSET ?`).all(...params, limit, offset).map(toRow);

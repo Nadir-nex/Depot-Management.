@@ -11,6 +11,7 @@ const { createWarehouseRepository, createAuditRepository } = require('../data/st
 const { withTransaction } = require('../db');
 const productsApp = require('./products');
 const inventoryApp = require('./inventory');
+const catalogApp = require('./catalog');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -34,6 +35,12 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       deleteProduct: (id, auth) => productsApp.deleteProduct(db, id, auth),
       receiveStock: (payload, auth) => inventoryApp.receiveStock(db, payload, auth),
       cancelReceipt: (id, reason, auth) => inventoryApp.cancelReceipt(db, id, reason, auth),
+      createCategory: (input, auth) => catalogApp.createCategory(db, input, auth),
+      deleteCategory: (id, auth) => catalogApp.deleteCategory(db, id, auth),
+      createUnit: (input, auth) => catalogApp.createUnit(db, input, auth),
+      createPack: (productId, input, auth) => catalogApp.createPack(db, productId, input, auth),
+      addBarcode: (productId, input, auth) => catalogApp.addBarcode(db, productId, input, auth),
+      removeBarcode: (id, auth) => catalogApp.removeBarcode(db, id, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -49,6 +56,12 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       listMovements: (opts) => inventoryApp.listMovements(db, opts),
       listReceipts: (opts) => inventoryApp.listReceipts(db, opts),
       getReceipt: (id) => inventoryApp.getReceipt(db, id),
+      listCategories: () => catalogApp.listCategories(db),
+      getCategoryTree: () => catalogApp.getCategoryTree(db),
+      listUnits: () => catalogApp.listUnits(db),
+      listPacks: (productId) => catalogApp.listPacks(db, productId),
+      listBarcodes: (productId) => catalogApp.listBarcodes(db, productId),
+      resolveBarcode: (code) => catalogApp.resolveBarcode(db, code),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };
