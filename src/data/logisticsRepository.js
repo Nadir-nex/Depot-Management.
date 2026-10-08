@@ -151,6 +151,10 @@ function createRouteStopRepository(db) {
           WHERE s.route_id = ? ORDER BY s.stop_no`
       ).all(routeId);
     },
+    // Every stop (hence route) referencing one delivery document.
+    ofDocument(deliveryDocId) {
+      return db.prepare('SELECT * FROM route_stops WHERE delivery_doc_id = ? ORDER BY id').all(deliveryDocId);
+    },
     nextStopNo(routeId) {
       const r = db.prepare('SELECT COALESCE(MAX(stop_no), 0) AS m FROM route_stops WHERE route_id = ?').get(routeId);
       return Number(r.m) + 1;

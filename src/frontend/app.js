@@ -65,6 +65,7 @@
       failStop: (id, input) => post('routes:stop-fail', { id, input }),
       completeRoute: (id, to) => post('routes:complete', { id, to }),
       cancelRoute: (id, reason) => post('routes:cancel', { id, reason }),
+      reserveStock: (routeId, input) => post('loading:reserve', { routeId, input }),
     };
   }
 
@@ -373,8 +374,8 @@
   let selectedRouteId = null;
 
   function routeActionFor(status) {
-    if (status === 'planned') return [{ a: 'load', l: 'تحميل' }, { a: 'cancel', l: 'إلغاء' }];
-    if (status === 'loaded') return [{ a: 'dispatch', l: 'انطلاق' }, { a: 'cancel', l: 'إلغاء' }];
+    if (status === 'planned') return [{ a: 'reserve', l: 'حجز الحمولة' }, { a: 'load', l: 'تحميل' }, { a: 'cancel', l: 'إلغاء' }];
+    if (status === 'loaded') return [{ a: 'reserve', l: 'حجز الحمولة' }, { a: 'dispatch', l: 'انطلاق' }, { a: 'cancel', l: 'إلغاء' }];
     if (status === 'out_for_delivery') return [{ a: 'delivered', l: 'تم التوصيل' }, { a: 'partial', l: 'جزئي' }, { a: 'failed', l: 'فشل' }];
     return [];
   }
@@ -424,6 +425,27 @@
   }
 
   async function routeAct(action, id) {
+    if (action === 'reserve') {
+      if (typeof api.reserveStock !== 'function') throw new Error('reservations need the desktop API');
+      const full = await unwrap(api.getRoute(id));
+      const errors = [];
+      for (const s of full.stops) {
+        if (!s.delivery_doc_id) continue;
+        const doc = await unwrap(api.getDocument(s.delivery_doc_id));
+        for (const line of doc.lines) {
+          try {
+            await unwrap(api.reserveStock(id, {
+              productId: line.product_id, warehouseId: doc.warehouseId ?? doc.warehouse_id,
+              lotId: line.lot_id, qty: line.qty,
+            }));
+          } catch (err) {
+            errors.push(`${line.product_sku || line.product_id}: ${err.message}`);
+          }
+        }
+      }
+      if (errors.length) throw new Error(errors.join(' | '));
+      return;
+    }
     if (action === 'load') await unwrap(api.loadRoute(id));
     else if (action === 'dispatch') await unwrap(api.dispatchRoute(id));
     else if (action === 'cancel') await unwrap(api.cancelRoute(id, 'cancelled from UI'));

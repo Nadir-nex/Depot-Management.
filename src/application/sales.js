@@ -17,6 +17,8 @@ const { validateSerialCode } = require('../domain/catalog');
 const { createProductRepository } = require('../data/productRepository');
 const { createLotRepository, createSerialRepository } = require('../data/lotRepository');
 const { createWarehouseRepository, createStockRepository, createAuditRepository } = require('../data/stockRepository');
+const { createReservationRepository } = require('../data/loadingRepository');
+const { createRouteStopRepository } = require('../data/logisticsRepository');
 const { createDocumentLineRepository } = require('../data/documentRepository');
 const documentsApp = require('./documents');
 const { withTransaction } = require('../db');
@@ -180,8 +182,15 @@ function fulfillDelivery(db, delivery, lines, serialsByLine, actorName) {
       lotId = null;
     }
     const pool = stock.poolStock({ productId: product.id, warehouseId: warehouse.id, lotId });
-    if (pool < line.qty && !product.allowNegativeStock) {
-      throw new StateError(`insufficient stock for ${product.sku} in ${warehouse.code}: need ${line.qty}, have ${pool}`);
+    // Availability nets other routes' claims: a posted delivery cannot take
+    // stock that route planning already promised elsewhere (P20 Model B).
+    // Stops on the delivery's own routes don't block their own fulfillment.
+    const ownRoutes = createRouteStopRepository(db).ofDocument(delivery.id).map((s) => s.route_id);
+    const claimed = createReservationRepository(db).claimedByOthers({
+      productId: product.id, warehouseId: warehouse.id, lotId, excludeRouteIds: ownRoutes,
+    });
+    if (pool - claimed < line.qty && !product.allowNegativeStock) {
+      throw new StateError(`insufficient stock for ${product.sku} in ${warehouse.code}: need ${line.qty}, have ${pool - claimed} free`);
     }
     const movementId = stock.insertMovement({
       productId: product.id, warehouseId: warehouse.id, qty: -line.qty, lotId,

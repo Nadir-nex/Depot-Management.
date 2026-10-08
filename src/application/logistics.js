@@ -24,6 +24,7 @@ const {
   createRouteRepository,
   createRouteStopRepository,
 } = require('../data/logisticsRepository');
+const { checkRouteCoverage, releaseReservations } = require('./loading');
 const { createAuditRepository } = require('../data/stockRepository');
 const { withTransaction, utcNowIso } = require('../db');
 
@@ -212,8 +213,9 @@ function removeStop(db, stopId, actorOrAuth = 'system') {
 }
 
 // Loading stages the truck: crew + at least one stop + every attached
-// delivery already posted (goods committed). Administrative until P20 adds
-// reservations — stock still moves at delivery-note posting.
+// delivery already posted (goods committed) + coverage of every delivery
+// line net of other routes' claims. Own claims are consumed (served);
+// leftovers release on completion/cancellation.
 function loadRoute(db, routeId, actorOrAuth = 'system') {
   const auth = requirePermission(normalizeAuth(actorOrAuth), 'deliveries.create');
   const current = createRouteRepository(db).getById(routeId);
@@ -228,8 +230,10 @@ function loadRoute(db, routeId, actorOrAuth = 'system') {
       const doc = docs.getById(s.delivery_doc_id);
       if (doc.status !== 'posted') throw new StateError(`delivery ${doc.docNo} is ${doc.status}: only posted deliveries load`);
     }
+    const covered = checkRouteCoverage(db, current);
+    const released = releaseReservations(db, routeId, auth);
     createRouteRepository(db).setStatus(routeId, 'loaded');
-    createAuditRepository(db).append({ actor: auth.actor, operation: 'route.load', entityType: 'route', entityId: routeId, details: `stops=${stops.length}`, referenceNo: current.route_no });
+    createAuditRepository(db).append({ actor: auth.actor, operation: 'route.load', entityType: 'route', entityId: routeId, details: `stops=${stops.length} lines=${covered.length} claims-released=${released}`, referenceNo: current.route_no });
     return getRoute(db, routeId);
   });
 }
@@ -306,9 +310,10 @@ function completeRoute(db, routeId, to, actorOrAuth = 'system') {
       throw new StateError('partial needs at least one delivered and one failed stop');
     }
     if (to === 'failed' && delivered > 0) throw new StateError('route has delivered stops: complete as partial');
+    const released = releaseReservations(db, routeId, auth);
     createRouteRepository(db).setStatus(routeId, to, { completedAt: utcNowIso() });
     const collected = stops.reduce((n, s) => n + s.collected_amount, 0);
-    createAuditRepository(db).append({ actor: auth.actor, operation: 'route.complete', entityType: 'route', entityId: routeId, details: `${to} delivered=${delivered} failed=${failed} collected=${collected}`, referenceNo: current.route_no });
+    createAuditRepository(db).append({ actor: auth.actor, operation: 'route.complete', entityType: 'route', entityId: routeId, details: `${to} delivered=${delivered} failed=${failed} collected=${collected} claims-released=${released}`, referenceNo: current.route_no });
     return getRoute(db, routeId);
   });
 }
@@ -321,8 +326,9 @@ function cancelRoute(db, routeId, reason = '', actorOrAuth = 'system') {
   assertRouteTransition(current.status, 'cancelled');
   return withTransaction(db, () => {
     createRouteStopRepository(db).cancelPending(routeId);
+    const released = releaseReservations(db, routeId, auth);
     createRouteRepository(db).setStatus(routeId, 'cancelled', { cancelReason: why.slice(0, 1000) });
-    createAuditRepository(db).append({ actor: auth.actor, operation: 'route.cancel', entityType: 'route', entityId: routeId, reason: why.slice(0, 1000), referenceNo: current.route_no });
+    createAuditRepository(db).append({ actor: auth.actor, operation: 'route.cancel', entityType: 'route', entityId: routeId, details: `claims-released=${released}`, reason: why.slice(0, 1000), referenceNo: current.route_no });
     return getRoute(db, routeId);
   });
 }

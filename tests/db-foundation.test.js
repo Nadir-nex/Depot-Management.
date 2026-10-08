@@ -68,7 +68,7 @@ describe('db foundation', () => {
       const itemsBefore = db.prepare('SELECT COUNT(*) n FROM items').get().n;
       assert.ok(itemsBefore > 0, 'legacy copy must contain catalog rows');
       const out = migrate(db, { dbPath: copy, backup: false });
-      assert.deepEqual(out.ran, ['001_core.sql', '002_stock.sql', '003_audit_fields.sql', '004_product_master.sql', '005_catalog_units.sql', '006_pricing.sql', '007_warehouses.sql', '008_stock_engine.sql', '009_lots.sql', '010_parties.sql', '011_documents.sql', '012_sales.sql', '013_purchases.sql', '014_returns.sql', '015_payments.sql', '016_expenses.sql', '017_counts.sql', '018_logistics.sql']);
+      assert.deepEqual(out.ran, ['001_core.sql', '002_stock.sql', '003_audit_fields.sql', '004_product_master.sql', '005_catalog_units.sql', '006_pricing.sql', '007_warehouses.sql', '008_stock_engine.sql', '009_lots.sql', '010_parties.sql', '011_documents.sql', '012_sales.sql', '013_purchases.sql', '014_returns.sql', '015_payments.sql', '016_expenses.sql', '017_counts.sql', '018_logistics.sql', '019_loading.sql']);
       assert.equal(db.prepare('SELECT COUNT(*) n FROM items').get().n, itemsBefore);
       assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='products'").get());
       assert.deepEqual(migrate(db, { dbPath: copy, backup: false }).ran, []);

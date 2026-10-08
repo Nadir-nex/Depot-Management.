@@ -22,6 +22,7 @@ const salesApp = require('./sales');
 const purchasesApp = require('./purchases');
 const returnsApp = require('./returns');
 const logisticsApp = require('./logistics');
+const loadingApp = require('./loading');
 const paymentsApp = require('./payments');
 const expensesApp = require('./expenses');
 const countsApp = require('./counts');
@@ -105,6 +106,8 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       failStop: (id, input, auth) => logisticsApp.failStop(db, id, input, auth),
       completeRoute: (id, to, auth) => logisticsApp.completeRoute(db, id, to, auth),
       cancelRoute: (id, reason, auth) => logisticsApp.cancelRoute(db, id, reason, auth),
+      reserveStock: (routeId, input, auth) => loadingApp.reserveStock(db, routeId, input, auth),
+      releaseReservations: (routeId, auth) => loadingApp.releaseReservations(db, routeId, auth),
       recordPayment: (input, auth) => paymentsApp.recordPayment(db, input, auth),
       reversePayment: (id, reason, auth) => paymentsApp.reversePayment(db, id, reason, auth),
       createCashAccount: (input, auth) => paymentsApp.createCashAccount(db, input, auth),
@@ -174,6 +177,8 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       listVehicles: () => logisticsApp.listVehicles(db),
       listRoutes: (opts) => logisticsApp.listRoutes(db, opts),
       getRoute: (id) => logisticsApp.getRoute(db, id),
+      listReservations: (routeId) => loadingApp.listReservations(db, routeId),
+      availableStock: (args) => loadingApp.availableStock(db, args),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };
