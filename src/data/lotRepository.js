@@ -102,7 +102,12 @@ function createSerialRepository(db) {
       return db.prepare('SELECT * FROM serial_numbers WHERE product_id = ? ORDER BY code').all(productId);
     },
     serialsConsumedBy(movementId) {
-      return db.prepare('SELECT * FROM serial_numbers WHERE out_movement_id = ? ORDER BY id').all(movementId);
+      return db.prepare("SELECT * FROM serial_numbers WHERE out_movement_id = ? AND status = 'out' ORDER BY id").all(movementId);
+    },
+    // Serials currently in stock whose last inbound movement was the given
+    // one (return-restores). Reversing that movement re-consumes them.
+    serialsReturnedBy(movementId) {
+      return db.prepare("SELECT * FROM serial_numbers WHERE out_movement_id = ? AND status = 'in_stock' ORDER BY id").all(movementId);
     },
     serialsRegisteredBy(movementId) {
       return db.prepare('SELECT * FROM serial_numbers WHERE in_movement_id = ? ORDER BY id').all(movementId);
@@ -115,11 +120,13 @@ function createSerialRepository(db) {
       if (info.changes === 0) throw new StateError(`serial ${id} is not available (already out or missing)`);
       return this.getById(id);
     },
-    // out → in_stock at a warehouse. Only reversals call this.
-    restore(id, warehouseId) {
+    // out → in_stock at a warehouse. Only reversals and returns call this.
+    // returnMovementId records the inbound movement when one exists (returns);
+    // plain reversals pass null and clear the outbound link.
+    restore(id, warehouseId, returnMovementId = null) {
       const info = db.prepare(
-        "UPDATE serial_numbers SET status = 'in_stock', warehouse_id = ?, out_movement_id = NULL WHERE id = ? AND status = 'out'"
-      ).run(warehouseId, id);
+        'UPDATE serial_numbers SET status = ?, warehouse_id = ?, out_movement_id = ? WHERE id = ? AND status = ?'
+      ).run('in_stock', warehouseId, returnMovementId, id, 'out');
       if (info.changes === 0) throw new StateError(`serial ${id} cannot be restored`);
       return this.getById(id);
     },

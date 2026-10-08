@@ -35,8 +35,8 @@ describe('vocabulary', () => {
     assert.deepEqual([...inventory.RECEIPT_STATUSES].sort(), Object.values(V.RECEIPT_STATUSES).sort());
   });
 
-  it('stays in sync with the SQL CHECK in 008_stock_engine.sql', () => {
-    const sql = fs.readFileSync(path.join(__dirname, '..', 'src', 'db', 'migrations', '008_stock_engine.sql'), 'utf8');
+  it('stays in sync with the SQL CHECK in 014_returns.sql', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'src', 'db', 'migrations', '014_returns.sql'), 'utf8');
     for (const t of Object.values(V.MOVEMENT_TYPES)) {
       assert.ok(sql.includes(`'${t}'`), `migration must list movement type ${t}`);
     }

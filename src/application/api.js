@@ -20,6 +20,7 @@ const partiesApp = require('./parties');
 const documentsApp = require('./documents');
 const salesApp = require('./sales');
 const purchasesApp = require('./purchases');
+const returnsApp = require('./returns');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -83,6 +84,9 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       postDeliveryNote: (id, opts, auth) => salesApp.postDeliveryNote(db, id, { ...(opts || {}), actor: auth }),
       postInvoice: (id, auth) => salesApp.postInvoice(db, id, auth),
       recordSupplierInvoice: (id, input, auth) => purchasesApp.recordSupplierInvoice(db, id, input, auth),
+      createCustomerReturn: (deliveryId, input, auth) => returnsApp.createCustomerReturn(db, deliveryId, input, auth),
+      postCustomerReturn: (id, input, auth) => returnsApp.postCustomerReturn(db, id, input, auth),
+      returnToSupplier: (input, auth) => returnsApp.returnToSupplier(db, input, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();

@@ -259,7 +259,15 @@ function cancelReceipt(db, receiptId, reason = '', actorOrAuth = 'system') {
     // Lines and their original movements pair by creation order (the receive
     // loop inserts line then movement sequentially, so both id-orders align).
     const originals = stock.ofReference('purchase_receipt', current.id);
+    const products = createProductRepository(db);
     current.lines.forEach((line, i) => {
+      // A receipt whose goods already left (returns, sales) cannot cancel:
+      // the reversal would drive its pool negative. Adjust explicitly instead.
+      const product = products.getById(line.product_id);
+      const pool = stock.poolStock({ productId: line.product_id, warehouseId: current.warehouse_id, lotId: line.lot_id });
+      if (pool < line.qty && !product.allowNegativeStock) {
+        throw new StateError(`cannot cancel: only ${pool} of ${product.sku} left (goods already moved out)`);
+      }
       const reversalId = stock.insertMovement({
         productId: line.product_id,
         warehouseId: current.warehouse_id,

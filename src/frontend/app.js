@@ -35,6 +35,8 @@
       postDeliveryNote: (id, opts) => post('sales:post-delivery', { id, opts }),
       postInvoice: (id) => post('sales:post-invoice', { id }),
       recordSupplierInvoice: (id, input) => post('purchases:record-invoice', { id, input }),
+      createCustomerReturn: (deliveryId, input) => post('returns:create', { deliveryId, input }),
+      postCustomerReturn: (id, input) => post('returns:post', { id, input }),
     };
   }
 
@@ -140,6 +142,12 @@
     return null;
   }
 
+  function salesExtraFor(doc) {
+    if (doc.status === 'posted' && doc.docType === 'delivery_note') return { action: 'return', label: 'إرجاع الكل' };
+    return null;
+  }
+  }
+
   async function refreshSales() {
     const body = document.getElementById('sales-body');
     if (!body || typeof api.listDocuments !== 'function') return;
@@ -149,7 +157,9 @@
       body.innerHTML = rows.length
         ? rows.map((d) => {
             const a = salesActionFor(d);
-            return `<tr><td>${escapeHtml(d.docNo || d.doc_no)}</td><td>${escapeHtml(d.docType || d.doc_type)}</td><td>${escapeHtml(d.status)}</td><td>${d.grandTotal ?? d.grand_total}</td><td>${a ? `<button data-sales-action="${a.action}" data-id="${d.id}">${a.label}</button>` : '—'}</td></tr>`;
+            const x = salesExtraFor(d);
+            const btn = (t) => `<button data-sales-action="${t.action}" data-id="${d.id}">${t.label}</button>`;
+            return `<tr><td>${escapeHtml(d.docNo || d.doc_no)}</td><td>${escapeHtml(d.docType || d.doc_type)}</td><td>${escapeHtml(d.status)}</td><td>${d.grandTotal ?? d.grand_total}</td><td>${a ? btn(a) : '—'}${x ? ' ' + btn(x) : ''}</td></tr>`;
           }).join('')
         : '<tr><td colspan="5">لا توجد وثائق بيع بعد.</td></tr>';
     } catch (e) {
@@ -168,6 +178,14 @@
       const inv = await unwrap(api.convertDeliveriesToInvoice([id], {}));
       await unwrap(api.confirmDocument(inv.id));
       await unwrap(api.postInvoice(inv.id));
+    } else if (action === 'return') {
+      if (typeof api.createCustomerReturn !== 'function') throw new Error('returns need the desktop API');
+      const delivery = await unwrap(api.getDocument(id));
+      const ret = await unwrap(api.createCustomerReturn(id, {
+        lines: delivery.lines.map((l) => ({ sourceLineId: l.id, qty: l.qty })),
+      }));
+      await unwrap(api.confirmDocument(ret.id));
+      await unwrap(api.postCustomerReturn(ret.id, { reason: 'customer_request' }));
     }
     refresh();
   }

@@ -60,9 +60,9 @@ const PARTY_ROLES = freezeValues({
   SUPPLIER: 'supplier',
 });
 
-// --- Inventory: canonical movement + receipt states (P09 owns the engine) ---
-// Must stay in sync with the CHECK in src/db/migrations/008_stock_engine.sql
-// (002 defined the original three; 008 widened the set via table rebuild).
+// --- Inventory: canonical movement + receipt states (P09 engine, P15 returns) ---
+// Must stay in sync with the CHECK in src/db/migrations/014_returns.sql
+// (002 defined three, 008 widened to seven, 014 adds the two return types).
 const MOVEMENT_TYPES = freezeValues({
   PURCHASE_RECEIPT: 'purchase_receipt',
   PURCHASE_RECEIPT_REVERSAL: 'purchase_receipt_reversal',
@@ -71,16 +71,21 @@ const MOVEMENT_TYPES = freezeValues({
   TRANSFER_OUT: 'transfer_out',
   TRANSFER_IN: 'transfer_in',
   REVERSAL: 'reversal',
+  SALES_RETURN: 'sales_return',
+  PURCHASE_RETURN: 'purchase_return',
 });
 
-// Reason codes for manual movements. Receipts carry document context instead;
-// counts get their own reasons in P18. Validated in the application layer.
+// Reason codes for manual movements AND returns. Receipts carry document
+// context instead; counts get their own reasons in P18.
 const MOVEMENT_REASONS = freezeValues({
   DAMAGED: 'damaged',
   EXPIRED: 'expired',
   LOST: 'lost',
   FOUND: 'found',
   CORRECTION: 'correction',
+  DEFECTIVE: 'defective',
+  WRONG_ITEM: 'wrong_item',
+  CUSTOMER_REQUEST: 'customer_request',
 });
 
 // Minimal receipt lifecycle used by the v0.2 slice; the generic engine (P12)

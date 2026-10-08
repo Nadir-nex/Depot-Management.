@@ -59,15 +59,6 @@ function assertStorableOpen(product, warehouse) {
   if (warehouse.is_active !== 1) throw new StateError(`warehouse ${warehouse.code} is inactive and cannot move stock`);
 }
 
-// The no-negative rule, checked inside the same transaction as the movement.
-function assertSufficientStock(stock, product, warehouse, delta) {
-  const after = stock.stockOf(product.id, warehouse.id) + delta;
-  if (after < 0 && !product.allowNegativeStock) {
-    throw new StateError(`insufficient stock for ${product.sku} in ${warehouse.code}: would go to ${after}`);
-  }
-  return after;
-}
-
 // Pool-scoped floor: an allocation draws only from its own lot pool (or the
 // untracked pool when lotId is null). Pools are not fungible.
 function assertPoolSufficient(stock, product, warehouse, lotId, delta) {
@@ -400,7 +391,14 @@ function reverseStockMovement(db, movementId, reason = '', actorOrAuth = 'system
         movementType: 'reversal', reasonCode: why, reversesMovementId: mov.id,
         referenceType: mov.reference_type, referenceId: mov.reference_id, unitCost: mov.unit_cost, unitCode: mov.unit_code,
       });
-      for (const s of serials.serialsConsumedBy(mov.id)) serials.restore(s.id, mov.warehouse_id);
+      if (mov.qty < 0) {
+        // Outbound undone: consumed serials come back (linked to this reversal).
+        for (const s of serials.serialsConsumedBy(mov.id)) serials.restore(s.id, mov.warehouse_id, id);
+      } else {
+        // Inbound undone: landed serials leave again, as do return-restored ones.
+        for (const s of serials.serialsRegisteredBy(mov.id)) serials.consume(s.id, id);
+        for (const s of serials.serialsReturnedBy(mov.id)) serials.consume(s.id, id);
+      }
       return id;
     };
 
