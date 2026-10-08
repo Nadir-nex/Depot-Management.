@@ -30,6 +30,7 @@ function registerIpc() {
     : { actor: 'renderer', grants: ['*'] });
   const routes = {
     'products:create': ([input, actor]) => appApi.commands.createProduct(input, serverAuth(actor)),
+    'products:update': ([id, fields, actor]) => appApi.commands.updateProduct(id, fields, serverAuth(actor)),
     'products:list': ([opts]) => appApi.queries.listProducts(opts),
     'products:get': ([id]) => appApi.queries.getProduct(id),
     'products:set-active': ([id, active, actor]) => appApi.commands.setProductActive(id, active, serverAuth(actor)),

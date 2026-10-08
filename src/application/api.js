@@ -29,6 +29,7 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
 
     commands: {
       createProduct: (input, auth) => productsApp.createProduct(db, input, auth),
+      updateProduct: (id, fields, auth) => productsApp.updateProduct(db, id, fields, auth),
       setProductActive: (id, active, auth) => productsApp.setProductActive(db, id, active, auth),
       deleteProduct: (id, auth) => productsApp.deleteProduct(db, id, auth),
       receiveStock: (payload, auth) => inventoryApp.receiveStock(db, payload, auth),

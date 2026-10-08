@@ -30,6 +30,7 @@ describe('auth', () => {
     const p = t.app.commands.createProduct({ sku: 'P-A', name: 'A' }, 'seed');
     const before = t.app.queries.listProducts({}).length;
     assert.throws(() => t.app.commands.createProduct({ sku: 'P-X', name: 'X' }, NOBODY()), (e) => e.code === 'FORBIDDEN');
+    assert.throws(() => t.app.commands.updateProduct(p.id, { name: 'Hack' }, NOBODY()), (e) => e.code === 'FORBIDDEN');
     assert.throws(() => t.app.commands.setProductActive(p.id, false, NOBODY()), (e) => e.code === 'FORBIDDEN');
     assert.throws(() => t.app.commands.deleteProduct(p.id, NOBODY()), (e) => e.code === 'FORBIDDEN');
     assert.throws(() => t.app.commands.receiveStock({ lines: [{ productId: p.id, qty: 1 }] }, NOBODY()), (e) => e.code === 'FORBIDDEN');

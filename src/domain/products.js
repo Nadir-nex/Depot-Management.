@@ -3,6 +3,7 @@
 // Money (default_unit_cost) is integer minor units (centimes) >= 0.
 const { ValidationError } = require('./errors');
 const { assertMinorUnits } = require('./money');
+const { PRODUCT_TYPES, TAX_CLASSES } = require('./vocabulary');
 
 const SKU_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
@@ -43,15 +44,74 @@ function validateUnitCost(cost) {
   return assertMinorUnits(cost);
 }
 
+function validateProductType(t) {
+  const v = cleanText(t) || 'goods';
+  if (!Object.values(PRODUCT_TYPES).includes(v)) {
+    throw new ValidationError(`unknown product type: ${t}`);
+  }
+  return v;
+}
+
+function validateTaxClass(t) {
+  const v = cleanText(t) || 'standard';
+  if (!Object.values(TAX_CLASSES).includes(v)) {
+    throw new ValidationError(`unknown tax class: ${t}`);
+  }
+  return v;
+}
+
+function validateMinStock(v) {
+  if (v === undefined || v === null || v === '') return 0;
+  if (typeof v === 'string' && v.trim() !== '') {
+    if (!/^-?\d+$/.test(v.trim())) throw new ValidationError('min_stock must be an integer');
+    v = Number(v.trim());
+  }
+  if (!Number.isInteger(v)) throw new ValidationError('min_stock must be an integer');
+  if (v < 0) throw new ValidationError('min_stock cannot be negative');
+  if (v > 1_000_000_000) throw new ValidationError('min_stock is unreasonably large');
+  return v;
+}
+
 function toProductInput(raw = {}) {
   return {
     sku: validateSku(raw.sku),
     name: validateName(raw.name),
     barcode: validateBarcode(raw.barcode),
+    productType: validateProductType(raw.productType ?? raw.product_type),
     defaultUnitCost: validateUnitCost(raw.defaultUnitCost ?? raw.default_unit_cost ?? 0),
+    defaultSalePrice: validateUnitCost(raw.defaultSalePrice ?? raw.default_sale_price ?? 0),
+    taxClass: validateTaxClass(raw.taxClass ?? raw.tax_class),
+    minStock: validateMinStock(raw.minStock ?? raw.min_stock),
     notes: cleanText(raw.notes).slice(0, 2000),
     isActive: raw.isActive === undefined ? true : Boolean(raw.isActive),
   };
 }
 
-module.exports = { validateSku, validateName, validateBarcode, validateUnitCost, toProductInput };
+// Updatable subset: sku is IMMUTABLE (business-key stability for history).
+// Every key validated with the same rules as creation.
+function toProductUpdate(raw = {}) {
+  const out = {};
+  if (raw.name !== undefined) out.name = validateName(raw.name);
+  if (raw.barcode !== undefined) out.barcode = validateBarcode(raw.barcode);
+  if (raw.productType !== undefined || raw.product_type !== undefined) {
+    out.productType = validateProductType(raw.productType ?? raw.product_type);
+  }
+  if (raw.defaultUnitCost !== undefined || raw.default_unit_cost !== undefined) {
+    out.defaultUnitCost = validateUnitCost(raw.defaultUnitCost ?? raw.default_unit_cost);
+  }
+  if (raw.defaultSalePrice !== undefined || raw.default_sale_price !== undefined) {
+    out.defaultSalePrice = validateUnitCost(raw.defaultSalePrice ?? raw.default_sale_price);
+  }
+  if (raw.taxClass !== undefined || raw.tax_class !== undefined) {
+    out.taxClass = validateTaxClass(raw.taxClass ?? raw.tax_class);
+  }
+  if (raw.minStock !== undefined || raw.min_stock !== undefined) {
+    out.minStock = validateMinStock(raw.minStock ?? raw.min_stock);
+  }
+  if (raw.notes !== undefined) out.notes = cleanText(raw.notes).slice(0, 2000);
+  if (raw.sku !== undefined) throw new ValidationError('sku is immutable; create a new product instead');
+  if (Object.keys(out).length === 0) throw new ValidationError('nothing to update');
+  return out;
+}
+
+module.exports = { validateSku, validateName, validateBarcode, validateUnitCost, validateProductType, validateTaxClass, validateMinStock, toProductInput, toProductUpdate };

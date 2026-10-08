@@ -73,6 +73,9 @@ function receiveStock(db, payload = {}, actorOrAuth = 'system') {
     const resolved = lines.map((l) => {
       const product = resolveProduct(products, l);
       if (!product.isActive) throw new StateError(`product ${product.sku} is inactive and cannot receive stock`);
+      if (product.productType === 'service') {
+        throw new StateError(`product ${product.sku} is a service and carries no stock`);
+      }
       return { product, qty: l.qty, unitCost: validateUnitCost(l.unitCost) };
     });
 

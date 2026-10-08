@@ -3,7 +3,7 @@
 // storage errors to the shared domain error contract. No Electron, no fs.
 const { ConflictError } = require('../domain/errors');
 const { normalizeAuth, requirePermission } = require('../domain/permissions');
-const { toProductInput } = require('../domain/products');
+const { toProductInput, toProductUpdate } = require('../domain/products');
 const { createProductRepository } = require('../data/productRepository');
 const { createAuditRepository } = require('../data/stockRepository');
 const { withTransaction } = require('../db');
@@ -38,6 +38,31 @@ function createProduct(db, rawInput, actorOrAuth = 'system') {
 
 function listProducts(db, opts) {
   return createProductRepository(db).list(opts);
+}
+
+// P05 catalog edit: validated subset, sku immutable, audited with before/after.
+function updateProduct(db, id, rawFields, actorOrAuth = 'system') {
+  const auth = requirePermission(normalizeAuth(actorOrAuth), 'products.edit');
+  const fields = toProductUpdate(rawFields);
+  return withTransaction(db, () => {
+    const products = createProductRepository(db);
+    const before = products.getById(id);
+    try {
+      const updated = products.update(id, fields);
+      const changed = Object.keys(fields).map((k) => `${k}: ${before[k]} → ${updated[k]}`).join('; ').slice(0, 400);
+      createAuditRepository(db).append({
+        actor: auth.actor, operation: 'product.update', entityType: 'product', entityId: id,
+        details: `sku=${before.sku} ${changed}`, before: `sku=${before.sku}`, after: changed,
+        referenceNo: before.sku,
+      });
+      return updated;
+    } catch (err) {
+      if (err && /UNIQUE constraint failed.*barcode/i.test(err.message || '')) {
+        throw new ConflictError('barcode already exists');
+      }
+      throw err;
+    }
+  });
 }
 
 function getProduct(db, id) {
@@ -76,4 +101,4 @@ function deleteProduct(db, id, actorOrAuth = 'system') {
   });
 }
 
-module.exports = { createProduct, listProducts, getProduct, setProductActive, deleteProduct };
+module.exports = { createProduct, listProducts, getProduct, updateProduct, setProductActive, deleteProduct };

@@ -75,6 +75,20 @@ const RECEIPT_STATUSES = freezeValues({
   CANCELLED: 'cancelled',
 });
 
+// --- Product master data (P05 owns the catalog; values frozen here) ---
+// 'service' products describe billable non-storables and NEVER appear in the
+// stock ledger. tax_class is classification only until P25 computes fiscal
+// amounts. min_stock is a stored alert threshold (alerting itself is P24).
+const PRODUCT_TYPES = freezeValues({
+  GOODS: 'goods',
+  SERVICE: 'service',
+});
+
+const TAX_CLASSES = freezeValues({
+  STANDARD: 'standard',
+  EXEMPT: 'exempt',
+});
+
 // --- Money: integer minor units, one currency until P16 says otherwise ---
 const MONEY = Object.freeze({
   CURRENCY: 'DZD',
@@ -159,6 +173,8 @@ module.exports = {
   PARTY_ROLES,
   MOVEMENT_TYPES,
   RECEIPT_STATUSES,
+  PRODUCT_TYPES,
+  TAX_CLASSES,
   MONEY,
   TIME,
   CORE_CONCEPTS,

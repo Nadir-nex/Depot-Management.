@@ -9,6 +9,7 @@ function call(channel, ...args) {
 
 contextBridge.exposeInMainWorld('depotApi', {
   createProduct: (input, actor) => call('products:create', input, actor),
+  updateProduct: (id, fields, actor) => call('products:update', id, fields, actor),
   listProducts: (opts) => call('products:list', opts),
   getProduct: (id) => call('products:get', id),
   setProductActive: (id, active, actor) => call('products:set-active', id, active, actor),

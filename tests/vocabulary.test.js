@@ -21,6 +21,8 @@ describe('vocabulary', () => {
     assertFrozenEnum(V.PARTY_ROLES, 'PARTY_ROLES');
     assertFrozenEnum(V.MOVEMENT_TYPES, 'MOVEMENT_TYPES');
     assertFrozenEnum(V.RECEIPT_STATUSES, 'RECEIPT_STATUSES');
+    assertFrozenEnum(V.PRODUCT_TYPES, 'PRODUCT_TYPES');
+    assertFrozenEnum(V.TAX_CLASSES, 'TAX_CLASSES');
     assert.ok(Object.isFrozen(V.DOCUMENT_TRANSITIONS), 'transitions must be frozen');
     assert.ok(Object.isFrozen(V.MONEY) && Object.isFrozen(V.TIME), 'money/time must be frozen');
   });

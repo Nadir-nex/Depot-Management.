@@ -75,6 +75,8 @@
         name: String(fd.get('name') || '').trim(),
         barcode: String(fd.get('barcode') || '').trim() || null,
         defaultUnitCost: Number(String(fd.get('defaultUnitCost') || '0').trim() || 0),
+        defaultSalePrice: Number(String(fd.get('defaultSalePrice') || '0').trim() || 0),
+        minStock: Number(String(fd.get('minStock') || '0').trim() || 0),
       }));
       show(msg, true, `تم إنشاء المنتج #${created.id} (${created.sku}).`);
       e.target.reset();
