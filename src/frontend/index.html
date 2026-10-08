@@ -118,6 +118,26 @@
         </table>
       </section>
       <section class="card wide">
+        <h2>الجرد (عدّ → مراجعة → ترحيل)</h2>
+        <form id="count-form">
+          <label>المستودع<select id="count-warehouse"><option value="MAIN">MAIN</option></select></label>
+          <button type="submit">بدء جرد جديد</button>
+        </form>
+        <div class="msg" id="count-msg"></div>
+        <table>
+          <thead><tr><th>الرقم</th><th>الحالة</th><th>السطور</th><th>إجراء</th></tr></thead>
+          <tbody id="counts-body"><tr><td colspan="4">…</td></tr></tbody>
+        </table>
+        <form id="countline-form">
+          <label>الجرد (ID)<input name="countId" required inputmode="numeric" /></label>
+          <label>SKU<input name="sku" required /></label>
+          <label>المعدود<input name="countedQty" required inputmode="numeric" /></label>
+          <label>السبب (للفروقات)<input name="reasonCode" maxlength="32" placeholder="damaged / lost / found…" /></label>
+          <button type="submit">إضافة سطر عدّ</button>
+        </form>
+        <div class="msg" id="countline-msg"></div>
+      </section>
+      <section class="card wide">
         <h2>المتعاملون (زبائن / مورّدون)</h2>
         <form id="party-form">
           <label>الاسم<input name="displayName" required maxlength="200" /></label>

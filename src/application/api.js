@@ -23,6 +23,7 @@ const purchasesApp = require('./purchases');
 const returnsApp = require('./returns');
 const paymentsApp = require('./payments');
 const expensesApp = require('./expenses');
+const countsApp = require('./counts');
 
 function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } = {}) {
   const db = typeof dbOrPath === 'string' || dbOrPath === undefined
@@ -98,6 +99,14 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       deleteExpenseCategory: (id, auth) => expensesApp.deleteExpenseCategory(db, id, auth),
       createExpense: (input, auth) => expensesApp.createExpense(db, input, auth),
       reverseExpense: (id, reason, auth) => expensesApp.reverseExpense(db, id, reason, auth),
+      createCount: (input, auth) => countsApp.createCount(db, input, auth),
+      addCountLine: (countId, input, auth) => countsApp.addCountLine(db, countId, input, auth),
+      updateCountLine: (lineId, input, auth) => countsApp.updateCountLine(db, lineId, input, auth),
+      removeCountLine: (lineId, auth) => countsApp.removeCountLine(db, lineId, auth),
+      submitCount: (id, auth) => countsApp.submitCount(db, id, auth),
+      approveCount: (id, auth) => countsApp.approveCount(db, id, auth),
+      postCount: (id, auth) => countsApp.postCount(db, id, auth),
+      cancelCount: (id, reason, auth) => countsApp.cancelCount(db, id, reason, auth),
       // Bootstrap helper for first run (MAIN depot). Audited, idempotent.
       ensureMainWarehouse: (actor) => withTransaction(db, () => {
         const w = createWarehouseRepository(db).ensureMain();
@@ -144,6 +153,8 @@ function createApp(dbOrPath, { migrateOnStart = true, dbPathForBackup = null } =
       listExpenses: (opts) => expensesApp.listExpenses(db, opts),
       getExpense: (id) => expensesApp.getExpense(db, id),
       expenseReport: (opts) => expensesApp.expenseReport(db, opts),
+      listCounts: (opts) => countsApp.listCounts(db, opts),
+      getCount: (id) => countsApp.getCount(db, id),
       recentAudit: (opts) => createAuditRepository(db).recent(opts),
     },
   };

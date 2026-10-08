@@ -42,6 +42,14 @@
       listExpenseCategories: () => post('expenses:categories', {}),
       createExpense: (input) => post('expenses:create', { input }),
       listExpenses: () => post('expenses:list', {}),
+      listCounts: () => post('counts:list', {}),
+      getCount: (id) => post('counts:get', { id }),
+      createCount: (input) => post('counts:create', { input }),
+      addCountLine: (countId, input) => post('counts:line-add', { countId, input }),
+      updateCountLine: (lineId, input) => post('counts:line-update', { lineId, input }),
+      submitCount: (id) => post('counts:submit', { id }),
+      approveCount: (id) => post('counts:approve', { id }),
+      postCount: (id) => post('counts:post', { id }),
     };
   }
 
@@ -67,6 +75,7 @@
     await refreshPOs();
     await refreshPayments();
     await refreshExpenses();
+    await refreshCounts();
     const stockWh = document.getElementById('stock-warehouse');
     const warehouse = stockWh && stockWh.value ? stockWh.value : 'MAIN';
     const stockBody = document.getElementById('stock-body');
@@ -122,6 +131,7 @@
       };
       fill(document.querySelector('select[name="warehouseCode"]'), false);
       fill(document.getElementById('stock-warehouse'), false);
+      fill(document.getElementById('count-warehouse'), false);
     } catch (e) { /* warehouse selects keep their MAIN default */ }
   }
 
@@ -300,6 +310,29 @@
     }
   }
 
+  function countActionFor(status) {
+    if (status === 'draft') return { action: 'submit', label: 'تقديم' };
+    if (status === 'submitted') return { action: 'approve', label: 'اعتماد' };
+    if (status === 'approved') return { action: 'post', label: 'ترحيل الفروقات' };
+    return null;
+  }
+
+  async function refreshCounts() {
+    const body = document.getElementById('counts-body');
+    if (!body || typeof api.listCounts !== 'function') return;
+    try {
+      const rows = await unwrap(api.listCounts({}));
+      body.innerHTML = rows.length
+        ? rows.slice(0, 20).map((c) => {
+            const a = countActionFor(c.status);
+            return `<tr><td>${escapeHtml(c.count_no)} (#${c.id})</td><td>${escapeHtml(c.status)}</td><td><button data-count-lines="${c.id}">السطور</button></td><td>${a ? `<button data-count-action="${a.action}" data-id="${c.id}">${a.label}</button>` : '—'}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="4">لا توجد جردات بعد.</td></tr>';
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="4">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
   document.getElementById('expense-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const msg = document.getElementById('expense-msg');
@@ -430,6 +463,70 @@
       refresh();
     } catch (err) {
       show(msg, false, `فشل الدفع: ${err.message}`);
+    }
+  });
+
+  document.getElementById('counts-body').addEventListener('click', async (e) => {
+    const act = e.target.closest('[data-count-action]');
+    const linesBtn = e.target.closest('[data-count-lines]');
+    const msg = document.getElementById('count-msg');
+    try {
+      if (linesBtn) {
+        const full = await unwrap(api.getCount(Number(linesBtn.dataset.countLines)));
+        const summary = full.lines.map((l) => `${l.product_sku}: counted=${l.counted_qty} expected=${l.expected_qty} var=${l.counted_qty - (l.expected_qty || 0)}`).join(' | ') || 'no lines';
+        show(msg, true, `#${full.id}: ${summary}`);
+        return;
+      }
+      if (!act) return;
+      const id = Number(act.dataset.id);
+      if (act.dataset.countAction === 'submit') await unwrap(api.submitCount(id));
+      else if (act.dataset.countAction === 'approve') await unwrap(api.approveCount(id));
+      else await unwrap(api.postCount(id));
+      show(msg, true, 'تمت العملية بنجاح.');
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشلت العملية: ${err.message}`);
+    }
+  });
+
+  document.getElementById('count-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('count-msg');
+    try {
+      if (typeof api.createCount !== 'function') throw new Error('counts need the desktop API');
+      const sel = document.getElementById('count-warehouse');
+      const created = await unwrap(api.createCount({ warehouseCode: (sel && sel.value) || 'MAIN' }));
+      show(msg, true, `بدأ الجرد ${created.count_no} (#${created.id}). أضف السطور برقم الجرد.`);
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل البدء: ${err.message}`);
+    }
+  });
+
+  document.getElementById('countline-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('countline-msg');
+    const fd = new FormData(e.target);
+    try {
+      if (typeof api.addCountLine !== 'function') throw new Error('counts need the desktop API');
+      const products = await unwrap(api.listProducts({ search: String(fd.get('sku') || '').trim() }));
+      const product = products.find((x) => x.sku === String(fd.get('sku') || '').trim());
+      if (!product) throw new Error('product not found');
+      await unwrap(api.addCountLine(Number(String(fd.get('countId') || '').trim()), {
+        productId: product.id,
+        countedQty: Number(String(fd.get('countedQty') || '').trim()),
+      }));
+      const reason = String(fd.get('reasonCode') || '').trim();
+      if (reason && typeof api.updateCountLine === 'function') {
+        const full = await unwrap(api.getCount(Number(String(fd.get('countId') || '').trim())));
+        const line = full.lines.find((l) => l.product_id === product.id);
+        if (line) await unwrap(api.updateCountLine(line.id, { reasonCode: reason }));
+      }
+      show(msg, true, 'تمت إضافة السطر.');
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشلت الإضافة: ${err.message}`);
     }
   });
 
