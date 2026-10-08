@@ -12,6 +12,7 @@ const {
   DOC_PREFIXES,
   assertTransition,
   validateDocDate,
+  validateDocDiscount,
   validateLineInput,
   computeTotals,
 } = require('../domain/documents');
@@ -124,6 +125,7 @@ function createDocument(db, raw = {}, actorOrAuth = 'system') {
         sourceDocId: source ? source.id : null,
         docDate: validateDocDate(raw.docDate ?? raw.doc_date),
         warehouseId: warehouse ? warehouse.id : null,
+        docDiscountAmount: validateDocDiscount(raw.docDiscountAmount ?? raw.doc_discount_amount),
         notes: cleanText(raw.notes ?? '').slice(0, 2000),
       });
     } catch (err) {
@@ -150,7 +152,7 @@ function createDocument(db, raw = {}, actorOrAuth = 'system') {
 function getDocument(db, id) {
   const doc = createDocumentRepository(db).getById(id);
   const lines = createDocumentLineRepository(db).ofDocument(id);
-  const draftTotals = computeTotals(lines.map((l) => ({ qty: l.qty, unit_price: l.unit_price, discount_amount: l.discount_amount })));
+  const draftTotals = computeTotals(lines.map((l) => ({ qty: l.qty, unit_price: l.unit_price, discount_amount: l.discount_amount })), doc.docDiscountAmount);
   return { ...doc, lines, draftTotals };
 }
 
@@ -176,13 +178,15 @@ function updateDocument(db, id, raw = {}, actorOrAuth = 'system') {
       docDate: raw.docDate !== undefined || raw.doc_date !== undefined ? validateDocDate(raw.docDate ?? raw.doc_date) : undefined,
       partyId: party === undefined ? undefined : (party ? party.id : null),
       warehouseId: warehouse === undefined ? undefined : (warehouse ? warehouse.id : null),
+      docDiscountAmount: raw.docDiscountAmount !== undefined || raw.doc_discount_amount !== undefined
+        ? validateDocDiscount(raw.docDiscountAmount ?? raw.doc_discount_amount) : undefined,
     });
     createAuditRepository(db).append({ actor: auth.actor, operation: 'document.update', entityType: 'document', entityId: id, referenceNo: updated.docNo });
     return getDocument(db, id);
   });
 }
 
-function addLine(db, documentId, rawLine, actorOrAuth = 'system') {
+function addLine(db, documentId, rawLine, actorOrAuth = 'system', opts = {}) {
   const current = createDocumentRepository(db).getById(documentId);
   const auth = requirePermission(normalizeAuth(actorOrAuth), permFor(current.docType, 'create'));
   assertDraft(current);
@@ -191,15 +195,26 @@ function addLine(db, documentId, rawLine, actorOrAuth = 'system') {
     const lines = createDocumentLineRepository(db);
     const refs = resolveLineRefs(db, input);
     if (!refs.product) throw new ValidationError('line must reference a product');
+    const sourceLineId = resolveSourceLine(db, documentId, rawLine.sourceLineId ?? rawLine.source_line_id);
     const row = lines.insert({
       documentId, lineNo: lines.nextLineNo(documentId), productId: refs.product.id,
       description: refs.description, qty: input.qty, unitCode: input.unitCode, packId: refs.packId,
       unitPrice: input.unitPrice, discountAmount: input.discountAmount, taxClass: refs.taxClass,
-      lineTotal: refs.lineTotal, lotId: refs.lotId, notes: input.notes,
+      lineTotal: refs.lineTotal, lotId: refs.lotId, sourceLineId, notes: input.notes,
     });
     createAuditRepository(db).append({ actor: auth.actor, operation: 'document.line_add', entityType: 'document', entityId: documentId, details: `sku=${refs.product.sku} qty=${input.qty}`, referenceNo: current.docNo });
     return row;
   });
+}
+
+// Provenance link: the source line must exist on a DIFFERENT document.
+// Quantity guards (no double delivery/invoicing) live in the sales service,
+// which owns the business meaning of each conversion.
+function resolveSourceLine(db, documentId, sourceLineId) {
+  if (sourceLineId === undefined || sourceLineId === null) return null;
+  const source = createDocumentLineRepository(db).getById(sourceLineId);
+  if (source.document_id === documentId) throw new ValidationError('a line cannot source itself');
+  return source.id;
 }
 
 function updateLine(db, lineId, rawLine, actorOrAuth = 'system') {
@@ -250,10 +265,18 @@ function confirmDocument(db, id, actorOrAuth = 'system') {
 // Posting freezes money: totals recompute from line snapshots and lock.
 // Products re-resolve here: inactive products cannot post (history rule);
 // the snapshot keeps whatever price the line carried.
-function postDocument(db, id, actorOrAuth = 'system') {
+//
+// postEffects hook: runs INSIDE the posting transaction before the status
+// flip so families can post their own effects atomically (delivery stock
+// issue in P13). Delivery notes REQUIRE effects — posting one through the
+// bare engine would silently skip stock, the exact P12 critical violation.
+function postDocument(db, id, actorOrAuth = 'system', opts = {}) {
   const current = createDocumentRepository(db).getById(id);
   const auth = requirePermission(normalizeAuth(actorOrAuth), permFor(current.docType, 'post'));
   assertTransition(current.docType, current.status, 'posted');
+  if (current.docType === 'delivery_note' && (!opts || typeof opts.postEffects !== 'function')) {
+    throw new StateError('delivery notes post through the sales fulfillment flow (stock effects required)');
+  }
   return withTransaction(db, () => {
     const docs = createDocumentRepository(db);
     const lines = createDocumentLineRepository(db).ofDocument(id);
@@ -262,7 +285,9 @@ function postDocument(db, id, actorOrAuth = 'system') {
       const product = createProductRepository(db).getById(l.product_id);
       if (!product.isActive) throw new StateError(`product ${product.sku} is inactive and cannot post`);
     }
-    const totals = computeTotals(lines);
+    if (opts && typeof opts.postEffects === 'function') opts.postEffects(db, current, lines);
+    const fresh = docs.getById(id);
+    const totals = computeTotals(lines, fresh.docDiscountAmount);
     docs.setTotals(id, totals);
     const updated = docs.setStatus(id, 'posted', { postedAt: utcNowIso() });
     createAuditRepository(db).append({ actor: auth.actor, operation: 'document.post', entityType: 'document', entityId: id, details: `grand=${totals.grandTotal}`, after: `status=posted grand=${totals.grandTotal}`, referenceNo: updated.docNo });
@@ -271,14 +296,19 @@ function postDocument(db, id, actorOrAuth = 'system') {
 }
 
 // Cancellation voids intent. Drafts/confirmed die quietly (reason kept);
-// posted cancellation voids a posted record WITHOUT fabricating effects —
-// stock/payment reversals arrive with P15 and reference the cancelled doc.
-// P15 will additionally require the reversal link; the column is ready.
+// posted invoices void a posted claim cleanly (receivables derive from
+// non-cancelled invoices, so the balance follows automatically). Posted
+// DELIVERY notes cannot cancel here: stock already left, and only the P15
+// returns/reversal engine may unwind that — cancelling would strand the
+// ledger. P15 replaces this guard with reversal linkage.
 function cancelDocument(db, id, reason = '', actorOrAuth = 'system') {
   const current = createDocumentRepository(db).getById(id);
   const auth = requirePermission(normalizeAuth(actorOrAuth), permFor(current.docType, 'cancel'));
   const why = cleanText(reason);
   if (!why) throw new ValidationError('a cancel reason is required');
+  if (current.docType === 'delivery_note' && current.status === 'posted') {
+    throw new StateError('posted delivery notes reverse through returns (P15), not cancellation');
+  }
   assertTransition(current.docType, current.status, 'cancelled');
   return withTransaction(db, () => {
     const updated = createDocumentRepository(db).setStatus(id, 'cancelled', { cancelledAt: utcNowIso(), cancelReason: why.slice(0, 1000) });

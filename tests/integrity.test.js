@@ -41,4 +41,26 @@ describe('integrity', () => {
     }));
     assert.equal(t.app.queries.getStock(a.id, 1), 0);
   });
+
+  it('nests transactions via savepoints: inner failure spares the outer work', () => {
+    const a = t.app.commands.createProduct({ sku: 'P-A', name: 'A' });
+    const { withTransaction } = require('../src/db');
+    withTransaction(t.app.db, () => {
+      t.app.db.prepare("INSERT INTO warehouses (code, name) VALUES ('NEST-1', 'n')").run();
+      assert.throws(() => withTransaction(t.app.db, () => {
+        t.app.db.prepare("INSERT INTO warehouses (code, name) VALUES ('NEST-2', 'n')").run();
+        throw new Error('inner failure');
+      }));
+    });
+    const codes = t.app.db.prepare("SELECT code FROM warehouses WHERE code LIKE 'NEST-%' ORDER BY code").all().map((r) => r.code);
+    assert.deepEqual(codes, ['NEST-1']); // outer committed, inner rolled back
+    assert.throws(() => withTransaction(t.app.db, () => {
+      t.app.db.prepare("INSERT INTO warehouses (code, name) VALUES ('NEST-3', 'n')").run();
+      withTransaction(t.app.db, () => {
+        t.app.db.prepare("INSERT INTO warehouses (code, name) VALUES ('NEST-4', 'n')").run();
+      });
+      throw new Error('outer failure');
+    }));
+    assert.equal(t.app.db.prepare("SELECT COUNT(*) n FROM warehouses WHERE code LIKE 'NEST-%' AND code != 'NEST-1'").get().n, 0);
+  });
 });

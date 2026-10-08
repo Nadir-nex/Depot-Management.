@@ -140,14 +140,19 @@ function createPartyPhoneRepository(db) {
 function createPartyBalanceRepository(db) {
   return {
     // Supplier payable: posted (non-cancelled) receipt lines linked to the
-    // party. Customer receivable: 0 until P13/P16 post invoices and payments.
+    // party. Customer receivable: posted (non-cancelled) sales invoices
+    // (P13); payments subtract from it in P16. No balance column anywhere.
     balanceOf(partyId) {
       const payable = db.prepare(
         `SELECT COALESCE(SUM(l.qty * l.unit_cost), 0) AS total
            FROM purchase_receipts r JOIN purchase_receipt_lines l ON l.receipt_id = r.id
           WHERE r.supplier_party_id = ? AND r.status = 'posted'`
       ).get(partyId).total;
-      return { receivable: 0, payable, net: 0 - payable };
+      const receivable = db.prepare(
+        `SELECT COALESCE(SUM(grand_total), 0) AS total FROM documents
+          WHERE party_id = ? AND doc_type = 'sales_invoice' AND status IN ('posted', 'partially_paid', 'paid')`
+      ).get(partyId).total;
+      return { receivable, payable, net: receivable - payable };
     },
   };
 }

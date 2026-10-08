@@ -100,9 +100,12 @@ function validateLineInput(raw = {}) {
   };
 }
 
-// Integer totals over snapshots: subtotal = Σ qty×price, discount explicit,
-// tax 0 until P25 computes rates (column reserved, never inferred).
-function computeTotals(lines) {
+// Integer totals over snapshots: subtotal = Σ qty×price, discounts explicit
+// (line + document), tax 0 until P25 computes rates (column reserved, never
+// inferred). Document discount must fit inside the discounted subtotal.
+function computeTotals(lines, docDiscount = 0) {
+  if (typeof docDiscount === 'string') throw new ValidationError('document discount must be an integer in minor units');
+  assertMinorUnits(docDiscount);
   let subtotal = 0;
   let discountTotal = 0;
   for (const l of lines) {
@@ -112,7 +115,15 @@ function computeTotals(lines) {
   if (!Number.isSafeInteger(subtotal) || !Number.isSafeInteger(discountTotal)) {
     throw new ValidationError('document totals overflow');
   }
-  return { subtotal, discountTotal, taxTotal: 0, grandTotal: subtotal - discountTotal };
+  const grandTotal = subtotal - discountTotal - docDiscount;
+  if (grandTotal < 0) throw new ValidationError('discounts cannot exceed the subtotal');
+  return { subtotal, discountTotal, taxTotal: 0, grandTotal };
+}
+
+function validateDocDiscount(v) {
+  if (v === undefined || v === null || v === '') return 0;
+  if (typeof v === 'string') throw new ValidationError('document discount must be an integer in minor units');
+  return assertMinorUnits(v);
 }
 
 module.exports = {
@@ -123,6 +134,7 @@ module.exports = {
   allowedTransition,
   assertTransition,
   validateDocDate,
+  validateDocDiscount,
   validateLineInput,
   computeTotals,
 };

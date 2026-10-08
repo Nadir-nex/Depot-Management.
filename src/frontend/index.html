@@ -52,6 +52,21 @@
         <div class="msg" id="stockop-msg"></div>
       </section>
       <section class="card wide">
+        <h2>المبيعات (طلب → توصيل → فاتورة)</h2>
+        <form id="sales-form">
+          <label>رمز الزبون<input name="customerCode" required /></label>
+          <label>SKU<input name="sku" required /></label>
+          <label>الكمية<input name="qty" required inputmode="numeric" value="1" /></label>
+          <label>سعر الوحدة (سنتيم)<input name="unitPrice" inputmode="numeric" value="0" /></label>
+          <button type="submit">إنشاء طلب بيع</button>
+        </form>
+        <div class="msg" id="sales-msg"></div>
+        <table>
+          <thead><tr><th>الرقم</th><th>النوع</th><th>الحالة</th><th>المجموع</th><th>إجراء</th></tr></thead>
+          <tbody id="sales-body"><tr><td colspan="5">…</td></tr></tbody>
+        </table>
+      </section>
+      <section class="card wide">
         <h2>المتعاملون (زبائن / مورّدون)</h2>
         <form id="party-form">
           <label>الاسم<input name="displayName" required maxlength="200" /></label>

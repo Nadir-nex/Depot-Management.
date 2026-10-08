@@ -35,14 +35,40 @@ function closeDatabase(db) {
 
 // Runs fn() inside BEGIN IMMEDIATE … COMMIT. Any throw rolls back and rethrows,
 // so multi-record business operations never leave partial state.
+//
+// RE-ENTRANT: services compose (sales conversions call engine commands that
+// open their own transactions). A nested call uses a SAVEPOINT instead of a
+// new transaction: inner failure rolls back to the savepoint only, while an
+// outer failure still wipes everything. Atomicity is preserved at every level.
+const txDepth = new WeakMap();
+
 function withTransaction(db, fn) {
-  db.exec('BEGIN IMMEDIATE');
+  const depth = txDepth.get(db) || 0;
+  if (depth === 0) {
+    db.exec('BEGIN IMMEDIATE');
+    txDepth.set(db, 1);
+    try {
+      const out = fn();
+      db.exec('COMMIT');
+      txDepth.set(db, 0);
+      return out;
+    } catch (err) {
+      try { db.exec('ROLLBACK'); } catch { /* already rolled back */ }
+      txDepth.set(db, 0);
+      throw err;
+    }
+  }
+  const sp = `p09_savepoint_${depth}`;
+  db.exec(`SAVEPOINT ${sp}`);
+  txDepth.set(db, depth + 1);
   try {
     const out = fn();
-    db.exec('COMMIT');
+    db.exec(`RELEASE ${sp}`);
+    txDepth.set(db, depth);
     return out;
   } catch (err) {
-    try { db.exec('ROLLBACK'); } catch { /* already rolled back */ }
+    try { db.exec(`ROLLBACK TO ${sp}`); db.exec(`RELEASE ${sp}`); } catch { /* ignore */ }
+    txDepth.set(db, depth);
     throw err;
   }
 }

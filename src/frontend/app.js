@@ -26,6 +26,14 @@
       listWarehouses: () => post('warehouses:list', {}),
       listParties: () => post('parties:list', {}),
       createParty: (input) => post('parties:create', { input }),
+      listDocuments: () => post('documents:list', {}),
+      createDocument: (input) => post('documents:create', { input }),
+      confirmDocument: (id) => post('documents:confirm', { id }),
+      postDocument: (id) => post('documents:post', { id }),
+      convertDocument: (sourceId, targetType, opts) => post('sales:convert', { sourceId, targetType, opts }),
+      convertDeliveriesToInvoice: (ids, opts) => post('sales:convert-deliveries', { ids, opts }),
+      postDeliveryNote: (id, opts) => post('sales:post-delivery', { id, opts }),
+      postInvoice: (id) => post('sales:post-invoice', { id }),
     };
   }
 
@@ -47,6 +55,7 @@
     await refreshCategories();
     await refreshWarehouses();
     await refreshParties();
+    await refreshSales();
     const stockWh = document.getElementById('stock-warehouse');
     const warehouse = stockWh && stockWh.value ? stockWh.value : 'MAIN';
     const stockBody = document.getElementById('stock-body');
@@ -119,8 +128,54 @@
     }
   }
 
-  document.getElementById('product-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  const SALES_TYPES = ['sales_quote', 'sales_order', 'delivery_note', 'sales_invoice', 'proforma_invoice'];
+
+  function salesActionFor(doc) {
+    if (doc.status === 'draft') return { action: 'confirm', label: 'تأكيد' };
+    if (doc.status === 'confirmed' && doc.docType !== 'sales_quote' && doc.docType !== 'proforma_invoice') return { action: 'post', label: 'ترحيل' };
+    if (doc.status === 'posted' && doc.docType === 'sales_order') return { action: 'deliver', label: 'توصيل الكل' };
+    if (doc.status === 'posted' && doc.docType === 'delivery_note') return { action: 'invoice', label: 'فوترة' };
+    return null;
+  }
+
+  async function refreshSales() {
+    const body = document.getElementById('sales-body');
+    if (!body || typeof api.listDocuments !== 'function') return;
+    try {
+      const docs = await unwrap(api.listDocuments({}));
+      const rows = docs.filter((d) => SALES_TYPES.includes(d.docType)).slice(0, 20);
+      body.innerHTML = rows.length
+        ? rows.map((d) => {
+            const a = salesActionFor(d);
+            return `<tr><td>${escapeHtml(d.docNo || d.doc_no)}</td><td>${escapeHtml(d.docType || d.doc_type)}</td><td>${escapeHtml(d.status)}</td><td>${d.grandTotal ?? d.grand_total}</td><td>${a ? `<button data-sales-action="${a.action}" data-id="${d.id}">${a.label}</button>` : '—'}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="5">لا توجد وثائق بيع بعد.</td></tr>';
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="5">تعذر التحميل: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  async function salesAct(action, id) {
+    if (action === 'confirm') await unwrap(api.confirmDocument(id));
+    else if (action === 'post') await unwrap(api.postDocument(id));
+    else if (action === 'deliver') {
+      const dn = await unwrap(api.convertDocument(id, 'delivery_note', { warehouseCode: currentWarehouseCode() }));
+      await unwrap(api.confirmDocument(dn.id));
+      await unwrap(api.postDeliveryNote(dn.id, {}));
+    } else if (action === 'invoice') {
+      const inv = await unwrap(api.convertDeliveriesToInvoice([id], {}));
+      await unwrap(api.confirmDocument(inv.id));
+      await unwrap(api.postInvoice(inv.id));
+    }
+    refresh();
+  }
+
+  function currentWarehouseCode() {
+    const sel = document.getElementById('stock-warehouse');
+    return (sel && sel.value) || 'MAIN';
+  }
+
+  document.getElementById('product-form').addEventListener('submit', async (e) => {    e.preventDefault();
     const msg = document.getElementById('product-msg');
     const fd = new FormData(e.target);
     try {
@@ -159,6 +214,47 @@
       refresh();
     } catch (err) {
       show(msg, false, `فشل الاستلام: ${err.message}`);
+    }
+  });
+
+  document.getElementById('sales-body').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-sales-action]');
+    if (!btn) return;
+    const msg = document.getElementById('sales-msg');
+    try {
+      await salesAct(btn.dataset.salesAction, Number(btn.dataset.id));
+      show(msg, true, 'تمت العملية بنجاح.');
+    } catch (err) {
+      show(msg, false, `فشلت العملية: ${err.message}`);
+    }
+  });
+
+  document.getElementById('sales-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('sales-msg');
+    const fd = new FormData(e.target);
+    try {
+      const sku = String(fd.get('sku') || '').trim();
+      const products = await unwrap(api.listProducts({ search: sku }));
+      const product = products.find((x) => x.sku === sku);
+      if (!product) throw new Error('product not found');
+      const parties = await unwrap(api.listParties({ search: String(fd.get('customerCode') || '').trim() }));
+      const customer = parties.find((x) => x.code === String(fd.get('customerCode') || '').trim());
+      if (!customer) throw new Error('customer not found');
+      const qty = Number(String(fd.get('qty') || '').trim());
+      const unitPrice = Number(String(fd.get('unitPrice') || '0').trim() || 0);
+      const resolved = (typeof api.resolveSalePrice === 'function')
+        ? await unwrap(api.resolveSalePrice({ productId: product.id, customerCode: customer.code }))
+        : { unitPrice };
+      const created = await unwrap(api.createDocument({
+        type: 'sales_order', partyId: customer.id,
+        lines: [{ productId: product.id, qty, unitPrice: unitPrice || resolved.unitPrice }],
+      }));
+      show(msg, true, `تم إنشاء الطلب ${created.docNo || created.doc_no}.`);
+      e.target.reset();
+      refresh();
+    } catch (err) {
+      show(msg, false, `فشل الإنشاء: ${err.message}`);
     }
   });
 
