@@ -3,7 +3,7 @@
 Date: 2026-10-08. Plan ref: `Dolisoft_PRO_12_3_Phased_Implementation_Plan.md` §5.
 P01 adapted: the reset directive already replaced the prototype, so the
 "existing application" baselined here is the **v0.2 clean foundation** plus the
-**preserved legacy artifacts**. No Dolisoft features implemented in this phase.
+**preserved source artifacts**. No Dolisoft features implemented in this phase.
 
 ## 1. Runtime
 - Node v26.8.2, npm 12.1.0. Engines floor: `node >= 22.5` (needs `node:sqlite`).
@@ -16,16 +16,16 @@ P01 adapted: the reset directive already replaced the prototype, so the
 - Domain (`src/domain/`) and application (`src/application/`) take a db handle;
   no Electron, no filesystem paths, no printer APIs, no DB-location assumptions.
 
-## 3. Databases (two, strictly separated)
+## 3. Databases (P01 snapshot: source archive + authoritative DB, strictly separated)
 | DB | Path | State at freeze | Role |
 |---|---|---|---|
 | New | `data/app.sqlite` (gitignored) | 8 tables, 3 demo products, 1 warehouse `MAIN`, 0 receipts | authoritative for new build |
-| Legacy | `db/database.sqlite` (gitignored) | 21 tables, **305 items**, 0 shipments, 1 customer | read-only migration source, NEVER migrated in place |
+| Source | `db/database.sqlite` (gitignored) | 21 tables, **305 items**, 0 shipments, 1 customer | archived original data: read-only one-shot import input, NEVER migrated in place |
 
 New schema: `schema_migrations`, `warehouses`, `products`, `purchase_receipts`,
 `purchase_receipt_lines`, `stock_movements`, `audit_log` — defined by
 `src/db/migrations/001_core.sql` + `002_stock.sql` (migrations ARE the schema dump).
-Legacy schema (prototype): `categories, companies, items, shipments, districts,
+Source prototype schema: `categories, companies, items, shipments, districts,
 customer_types, customers, customer_phones, orders, order_items, product_costs,
 product_prices, product_price_history, employees, employee_phones, employee_roles,
 vehicles, deliveries, delivery_orders, delivery_stops` — recoverable via tag
@@ -33,7 +33,8 @@ vehicles, deliveries, delivery_orders, delivery_stops` — recoverable via tag
 
 ## 4. Seed data
 - New DB: `scripts/seed.js` inserts `MAIN` warehouse + 3 `DEMO-*` products. Idempotent by SKU. Dev only.
-- Legacy catalog (305 rows) NOT imported yet — explicit job of Phase 22 (migration).
+- Source catalog (305 rows) NOT imported at P01 — imported by Phase 22 via
+  `node scripts/import-source.js --apply` (see §13).
 
 ## 5. IPC boundary (13 channels, verified 1:1 main ↔ preload)
 `products:create/list/get/set-active/delete`, `stock:receive`, `stock:cancel-receipt`,
@@ -68,7 +69,7 @@ Windows installer to be re-added when a release is cut (Phase 28).
 - No user-facing export yet (deferred to Phase 22/23).
 
 ## 11. "Do not" compliance
-Legacy DB untouched (305 items before and after). No renames, no UI rewrite beyond
+Source DB untouched (305 items before and after). No renames, no UI rewrite beyond
 the reset mandate, no schema replacement outside migrations, no Dolisoft features.
 
 ## 12. Exit-gate evidence (2026-10-08)
@@ -81,3 +82,18 @@ the reset mandate, no schema replacement outside migrations, no Dolisoft feature
 - Launch: Electron binary present (v44.7.0); full GUI launch requires a display and
   is verified by running `npm start` on a desktop machine (headless CI cannot open
   a window; IPC/preload/frontend static cross-check passed instead).
+
+## 13. Phase 22 update (2026-10-08) — migration complete, one authoritative schema
+
+- One-shot import: `npm run import:source` (`scripts/import-source.js`) reads the
+  source DB read-only + fingerprinted, stages raw rows, writes `source_links`,
+  reconciles counts and prints the migration report. `--apply` to write,
+  dry-run by default; re-runs are idempotent (linked/adopt/create).
+- Export: `npm run export:data` writes a canonical JSON snapshot (reports/backup).
+- ONE SCHEMA: `src/db/migrate.js` refuses any database containing tables the
+  migrations never produced (code `FOREIGN_SCHEMA`) before any write — a second
+  database can never carry a second schema. Source data goes through
+  the staged import, never through in-place migration.
+- Single layer: import/export tooling lives under scripts/ + one infrastructure
+  reader, is never loaded by the runtime (`api.js` does not import it), and the
+  renderer/IPC expose no import paths. Terminology is "source" (one-shot input).

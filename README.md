@@ -2,7 +2,7 @@
 
 Clean foundation, rebuilt per the Project Reset and Architecture Directive.
 Prototype source was removed; its history is preserved in git tag `pre-reset-prototype`.
-Legacy prototype database `db/database.sqlite` is untouched (migration source only).
+Source prototype database `db/database.sqlite` is untouched (read-only one-shot import input).
 
 ## Architecture (one codebase, two delivery modes)
 
@@ -46,6 +46,8 @@ npm run seed      # bootstrap MAIN warehouse + demo catalog (dev only)
 npm start         # Electron desktop (or npm run dev for DevTools)
 npm test          # automated suite (migrations, products, stock, integrity)
 npm run db:integrity  # PRAGMA integrity_check + foreign_key_check + stock summary
+npm run import:source # one-shot data migration from db/database.sqlite (dry-run; -- --apply)
+npm run export:data   # canonical JSON snapshot of the business data
 ```
 
 Recover the prototype for reference without touching the rebuild:
@@ -53,8 +55,8 @@ Recover the prototype for reference without touching the rebuild:
 ```bash
 git show pre-reset-prototype:main.js | head
 git show pre-reset-prototype:db/database.js | head
-# legacy data (read-only source):
-# db/database.sqlite  (305 catalog rows at reset time, gitignored, never migrated in place)
+# source data (read-only, one-shot import input — never migrated in place):
+# db/database.sqlite  (305 catalog rows at reset time, gitignored; npm run import:source)
 ```
 
 ## Vertical slice (v0.2)
@@ -62,5 +64,5 @@ git show pre-reset-prototype:db/database.js | head
 `createProduct` → `receiveStock` (purchase receipt + lines + movements, one transaction)
 → `getStock` (derived) → `cancelReceipt` (reversal). Proves the full path
 frontend → application/API → domain → repositories → SQLite + migrations + tests.
-Sales orders, invoices, payments, deliveries, and full migration of legacy data arrive
+Sales orders, invoices, payments, deliveries, and full migration of source data arrive
 in later phases per the phased implementation plan.

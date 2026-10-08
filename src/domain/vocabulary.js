@@ -140,11 +140,6 @@ const MAIN_WAREHOUSE_CODE = 'MAIN';
 // destruction of expired goods stays representable in the ledger.
 const EXPIRY_POLICY = 'block_outflow';
 
-const SERIAL_STATUSES = freezeValues({
-  IN_STOCK: 'in_stock',
-  OUT: 'out',
-});
-
 // --- Payments and cash (P16 owns money movement; enums frozen here) ---
 // Allocations link payments to posted invoices/receipts; unallocated
 // remainder stays explicitly on-account. Cash sessions reconcile opening +
@@ -161,16 +156,6 @@ const PAYMENT_DIRECTIONS = freezeValues({
 });
 
 // --- Logistics (P19 owns routes; returns stay document-level by design) ---
-const ROUTE_STATUSES = freezeValues({
-  PLANNED: 'planned',
-  LOADED: 'loaded',
-  OUT_FOR_DELIVERY: 'out_for_delivery',
-  DELIVERED: 'delivered',
-  PARTIAL: 'partial',
-  FAILED: 'failed',
-  CANCELLED: 'cancelled',
-});
-
 const ROUTE_TRANSITIONS = Object.freeze({
   planned: Object.freeze(['loaded', 'cancelled']),
   loaded: Object.freeze(['out_for_delivery', 'cancelled']),
@@ -179,13 +164,6 @@ const ROUTE_TRANSITIONS = Object.freeze({
   partial: Object.freeze([]),
   failed: Object.freeze([]),
   cancelled: Object.freeze([]),
-});
-
-const ROUTE_STOP_STATUSES = freezeValues({
-  PENDING: 'pending',
-  DELIVERED: 'delivered',
-  FAILED: 'failed',
-  CANCELLED: 'cancelled',
 });
 
 const STOP_FAIL_REASONS = freezeValues({
@@ -288,12 +266,9 @@ module.exports = {
   MOVEMENT_TYPES,
   MOVEMENT_REASONS,
   EXPIRY_POLICY,
-  SERIAL_STATUSES,
   PAYMENT_METHODS,
   PAYMENT_DIRECTIONS,
-  ROUTE_STATUSES,
   ROUTE_TRANSITIONS,
-  ROUTE_STOP_STATUSES,
   STOP_FAIL_REASONS,
   SETTLEMENT_STATUSES,
   RECEIPT_STATUSES,

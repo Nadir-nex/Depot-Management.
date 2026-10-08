@@ -134,7 +134,7 @@ describe('catalog', () => {
     assert.throws(() => t.app.commands.receiveStock({ lines: [{ productId: q.id, packId: box.id, packs: 1 }] }), (e) => e.code === 'VALIDATION');
   });
 
-  it('backfills the legacy barcode column into preferred rows, then drops it', () => {
+  it('backfills the pre-005 barcode column into preferred rows, then drops it', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'depot-backfill-'));
     for (const f of ['001_core.sql', '002_stock.sql', '003_audit_fields.sql', '004_product_master.sql']) {
       fs.copyFileSync(path.join(SRC_MIGRATIONS, f), path.join(dir, f));
@@ -143,23 +143,23 @@ describe('catalog', () => {
     const db = openDatabase(dbPath);
     try {
       migrate(db, { dbPath, backup: false, migrationsDir: dir });
-      // Raw legacy-shape insert (pre-005 columns, incl. barcode).
+      // Raw pre-005-shape insert (products table still had a barcode column).
       db.prepare(`INSERT INTO products (sku, name, barcode, product_type, is_active, default_unit_cost,
         default_sale_price, tax_class, min_stock, notes, created_at, updated_at)
-        VALUES ('LEG-1', 'Legacy', 'LEGACY-BC', 'goods', 1, 0, 0, 'standard', 0, '', ?, ?)`)
+        VALUES ('PRE5-1', 'Pre5 row', 'PRE5-BC', 'goods', 1, 0, 0, 'standard', 0, '', ?, ?)`)
         .run('2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
       fs.copyFileSync(path.join(SRC_MIGRATIONS, '005_catalog_units.sql'), path.join(dir, '005_catalog_units.sql'));
       const out = migrate(db, { dbPath, backup: false, migrationsDir: dir });
       assert.deepEqual(out.ran, ['005_catalog_units.sql']);
       const cols = db.prepare('PRAGMA table_info(products)').all().map((c) => c.name);
-      assert.ok(!cols.includes('barcode'), 'legacy column must be gone: single barcode system');
+      assert.ok(!cols.includes('barcode'), 'pre-005 column must be gone: single barcode system');
       assert.ok(cols.includes('category_id'));
-      const row = db.prepare('SELECT * FROM product_barcodes WHERE code = ?').get('LEGACY-BC');
+      const row = db.prepare('SELECT * FROM product_barcodes WHERE code = ?').get('PRE5-BC');
       assert.ok(row && row.is_preferred === 1, 'backfilled code must be preferred');
       // New API works on the migrated database:
-      const found = productsApp.listProducts(db, { search: 'LEGACY-BC' });
+      const found = productsApp.listProducts(db, { search: 'PRE5-BC' });
       assert.equal(found.length, 1);
-      assert.equal(found[0].sku, 'LEG-1');
+      assert.equal(found[0].sku, 'PRE5-1');
     } finally {
       db.close();
     }

@@ -195,6 +195,9 @@ function createReceiptRepository(db) {
       if (!r) throw new NotFoundError(`receipt ${id} not found`);
       return r;
     },
+    getByNo(receiptNo) {
+      return db.prepare('SELECT * FROM purchase_receipts WHERE receipt_no = ?').get(receiptNo) || null;
+    },
     linesOf(receiptId) {
       return db.prepare('SELECT * FROM purchase_receipt_lines WHERE receipt_id = ? ORDER BY id').all(receiptId);
     },

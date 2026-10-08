@@ -30,9 +30,13 @@ describe('vocabulary', () => {
     assert.ok(Object.isFrozen(V.MONEY) && Object.isFrozen(V.TIME), 'money/time must be frozen');
   });
 
-  it('has a single source: inventory.js reuses vocabulary values', () => {
-    assert.deepEqual([...inventory.MOVEMENT_TYPES].sort(), Object.values(V.MOVEMENT_TYPES).sort());
-    assert.deepEqual([...inventory.RECEIPT_STATUSES].sort(), Object.values(V.RECEIPT_STATUSES).sort());
+  it('has a single source: inventory validates against vocabulary values', () => {
+    // inventory derives its validation views from vocabulary — proven
+    // behaviorally instead of by re-exporting enums to old call sites.
+    for (const t of Object.values(V.MOVEMENT_TYPES)) {
+      assert.equal(inventory.validateMovementType(t), t);
+    }
+    assert.throws(() => inventory.validateMovementType('not_a_movement'), /unknown movement type/);
   });
 
   it('stays in sync with the SQL CHECK in 014_returns.sql', () => {

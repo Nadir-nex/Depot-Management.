@@ -37,4 +37,4 @@ function toMinorUnitsFromMajor(major, precision = MONEY.MINOR_UNIT_PRECISION) {
   return assertMinorUnits(minor);
 }
 
-module.exports = { MAX_MINOR_UNITS, assertMinorUnits, toMinorUnitsFromMajor };
+module.exports = { assertMinorUnits, toMinorUnitsFromMajor };

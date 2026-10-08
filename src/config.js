@@ -14,4 +14,4 @@ function resolveDbPath(env = process.env) {
   return path.join(repoRoot(), 'data', 'app.sqlite');
 }
 
-module.exports = { repoRoot, resolveDbPath };
+module.exports = { resolveDbPath };

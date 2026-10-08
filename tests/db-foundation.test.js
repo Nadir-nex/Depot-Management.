@@ -1,5 +1,5 @@
 'use strict';
-// Phase 03 adversarial suite: locking, legacy migration, failure atomicity,
+// Phase 03 adversarial suite: locking, one-schema refusal, failure atomicity,
 // backup-on-upgrade, timestamp policy, audit retention surface.
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
@@ -59,19 +59,31 @@ describe('db foundation', () => {
     }
   });
 
-  it('migrates a copy of the frozen legacy baseline without losing rows', () => {
-    const legacy = path.join(REPO_ROOT, 'db', 'database.sqlite');
-    const copy = tmpFile('legacy-copy.sqlite');
-    fs.copyFileSync(legacy, copy);
+  it('refuses a foreign-schema database and leaves its data untouched (one schema)', () => {
+    // A database carrying an old/foreign schema (e.g. a raw copy of the
+    // source prototype) must never be migrated in place: that would park a
+    // second schema beside the authoritative one. The runner refuses before
+    // any write; legitimate migration goes through the staged import CLI.
+    const source = path.join(REPO_ROOT, 'db', 'database.sqlite');
+    const copy = tmpFile('foreign-copy.sqlite');
+    fs.copyFileSync(source, copy);
     const db = openDatabase(copy);
     try {
       const itemsBefore = db.prepare('SELECT COUNT(*) n FROM items').get().n;
-      assert.ok(itemsBefore > 0, 'legacy copy must contain catalog rows');
-      const out = migrate(db, { dbPath: copy, backup: false });
-      assert.deepEqual(out.ran, ['001_core.sql', '002_stock.sql', '003_audit_fields.sql', '004_product_master.sql', '005_catalog_units.sql', '006_pricing.sql', '007_warehouses.sql', '008_stock_engine.sql', '009_lots.sql', '010_parties.sql', '011_documents.sql', '012_sales.sql', '013_purchases.sql', '014_returns.sql', '015_payments.sql', '016_expenses.sql', '017_counts.sql', '018_logistics.sql', '019_loading.sql', '020_route_settlements.sql']);
-      assert.equal(db.prepare('SELECT COUNT(*) n FROM items').get().n, itemsBefore);
-      assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='products'").get());
-      assert.deepEqual(migrate(db, { dbPath: copy, backup: false }).ran, []);
+      assert.ok(itemsBefore > 0, 'source copy must contain catalog rows');
+      assert.throws(
+        () => migrate(db, { dbPath: copy, backup: false }),
+        (err) => err.code === 'FOREIGN_SCHEMA'
+      );
+      assert.equal(db.prepare('SELECT COUNT(*) n FROM items').get().n, itemsBefore, 'rows preserved');
+      assert.ok(
+        !db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='products'").get(),
+        'no current-schema table may be created on refusal'
+      );
+      assert.ok(
+        !db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").get(),
+        'refusal must happen before any write'
+      );
     } finally {
       db.close();
     }
@@ -121,30 +133,5 @@ describe('db foundation', () => {
     } finally {
       closeTestApp(t);
     }
-  });
-
-  it('never collides with frozen legacy table names (expand-migrate-verify-cutover)', () => {
-    // Every new table must coexist with the legacy prototype schema until P22
-    // proves the migration. A collision (like categories in P06) breaks
-    // migrating the legacy database. Derived live — no hardcoded lists.
-    const namesOf = (dbPath) => {
-      const db = openDatabase(dbPath);
-      try {
-        return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all().map((r) => r.name);
-      } finally {
-        db.close();
-      }
-    };
-    const freshPath = tmpFile('collision-fresh.sqlite');
-    const fresh = openDatabase(freshPath);
-    try {
-      migrate(fresh, { dbPath: freshPath, backup: false });
-    } finally {
-      fresh.close();
-    }
-    const ours = namesOf(freshPath);
-    const legacy = namesOf(path.join(REPO_ROOT, 'db', 'database.sqlite'));
-    const clash = ours.filter((t) => legacy.includes(t));
-    assert.deepEqual(clash, [], `new tables collide with legacy: ${clash.join(', ')}`);
   });
 });

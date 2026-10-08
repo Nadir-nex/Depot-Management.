@@ -73,7 +73,7 @@ CREATE TEMP TABLE _p05_barcode_backfill AS
   SELECT id AS product_id, barcode AS code FROM products
   WHERE barcode IS NOT NULL AND barcode != '';
 
--- Remove the legacy column by rebuild (ids preserved, FK checks deferred to
+-- Remove the pre-005 barcode column by rebuild (ids preserved, FK checks deferred to
 -- COMMIT, at which point the final schema is fully consistent again).
 PRAGMA defer_foreign_keys = ON;
 CREATE TABLE products_new (

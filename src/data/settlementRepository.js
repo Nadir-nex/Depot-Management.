@@ -99,4 +99,4 @@ function createSettlementRepository(db) {
   };
 }
 
-module.exports = { createSettlementRepository, deriveStatus };
+module.exports = { createSettlementRepository };

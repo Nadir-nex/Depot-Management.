@@ -131,7 +131,6 @@ module.exports = {
   TYPE_TRANSITIONS,
   TYPE_PERMISSIONS,
   DOC_PREFIXES,
-  allowedTransition,
   assertTransition,
   validateDocDate,
   validateDocDiscount,

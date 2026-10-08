@@ -126,4 +126,4 @@ function toProductUpdate(raw = {}) {
   return out;
 }
 
-module.exports = { validateSku, validateName, validateBarcode, validateUnitCost, validateProductType, validateTaxClass, validateMinStock, toProductInput, toProductUpdate };
+module.exports = { validateBarcode, validateUnitCost, validateTaxClass, toProductInput, toProductUpdate };

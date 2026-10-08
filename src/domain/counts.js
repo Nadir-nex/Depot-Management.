@@ -4,14 +4,6 @@
 // reverse through the stock engine, never by reopening the count).
 const { ValidationError } = require('./errors');
 
-const COUNT_STATUSES = Object.freeze({
-  DRAFT: 'draft',
-  SUBMITTED: 'submitted',
-  APPROVED: 'approved',
-  POSTED: 'posted',
-  CANCELLED: 'cancelled',
-});
-
 const COUNT_TRANSITIONS = Object.freeze({
   draft: Object.freeze(['submitted', 'cancelled']),
   submitted: Object.freeze(['draft', 'approved', 'cancelled']),
@@ -36,4 +28,4 @@ function validateCountedQty(qty) {
   return qty;
 }
 
-module.exports = { COUNT_STATUSES, COUNT_TRANSITIONS, assertCountTransition, validateCountedQty };
+module.exports = { COUNT_TRANSITIONS, assertCountTransition, validateCountedQty };

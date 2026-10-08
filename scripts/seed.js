@@ -1,6 +1,6 @@
 'use strict';
 // CLI: node scripts/seed.js [--db <path>]
-// Dev/test seed ONLY. Never touches the legacy db/database.sqlite.
+// Dev/test seed ONLY. Never touches the frozen source db/database.sqlite.
 // Creates MAIN warehouse + a tiny demo catalog. Idempotent by SKU.
 const { resolveDbPath } = require('../src/config');
 const { createApp } = require('../src/application/api');

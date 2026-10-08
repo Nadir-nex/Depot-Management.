@@ -136,9 +136,15 @@ If a requirement is not supported by the reverse report, the current project, or
 
 Flag it for later instead.
 
-## Rule 11 — Preserve backward compatibility where cheap
+## Rule 11 — Preserve legitimate business data, never an old architecture
 
-Existing customer/product/order data should be imported or mapped where practical. Do not destroy working distributor-specific functionality merely to mimic the reference product.
+Existing customer/product/order data must be imported into the current
+architecture through the staged, verified migration path
+(inspect → backup → migrate → verify → cut over). The running application
+never supports the old schema: there is no compatibility mode, no dual
+schema and no second live database. Remove old implementations once their
+data has landed; do not keep them "just in case". Do not destroy working
+distributor-specific functionality merely to mimic the reference product.
 
 ## Rule 12 — Keep the application runnable
 
@@ -1372,11 +1378,20 @@ Warehouse → Truck → Customer → Payment → Settlement
 
 ---
 
-# 26. Phase 22 — Import, export and migration from the old Depot database
+# 26. Phase 22 — Import, export and one-shot migration from the source database
 
 ## Objective
 
-Move actual customer data into the new model without losing history.
+Move actual customer data into the current architecture without losing history.
+
+## Non-goal (hard rule)
+
+This phase is DATA MIGRATION ONLY. It must not create a second runtime
+layer: no second live database, no old schema beside the new schema, no
+compatibility mode. The source database is read-only input to a
+staged import tool; after a verified import the application runs solely on
+the current SQLite schema and the source file remains only as the archived
+original data.
 
 ## Work sequence
 

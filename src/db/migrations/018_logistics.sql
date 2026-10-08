@@ -1,8 +1,9 @@
 -- 018_logistics.sql — Phase 19: distributor delivery domain.
 --
 -- drivers / fleet_vehicles: lightweight distributor master data, deliberately
--- NOT the HR module (P26 owns employment). fleet_vehicles avoids the legacy
--- prototype's vehicles table (coexistence until P22; pinned by test).
+-- NOT the HR module (P26 owns employment). The authoritative schema never
+-- reuses source-prototype table names; the migration runner refuses any
+-- database that carries a foreign/old schema.
 -- routes: planned → loaded → out_for_delivery → delivered/partial/failed,
 -- cancelled from planned/loaded. LOADED is administrative in v1 (goods commit
 -- at delivery-note posting; the P20 loading/reservation model refines it).

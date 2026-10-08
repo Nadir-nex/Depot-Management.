@@ -10,7 +10,9 @@
     "test": "node --test tests/",
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",
-    "db:integrity": "node scripts/integrity-check.js"
+    "db:integrity": "node scripts/integrity-check.js",
+    "import:source": "node scripts/import-source.js",
+    "export:data": "node scripts/export-data.js"
   },
   "engines": {
     "node": ">=22.5"

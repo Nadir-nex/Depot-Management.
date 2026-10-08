@@ -74,4 +74,4 @@ function requirePermission(auth, perm) {
   return auth;
 }
 
-module.exports = { PERMISSIONS, ALL_GRANTS, normalizeAuth, hasPermission, requirePermission };
+module.exports = { PERMISSIONS, normalizeAuth, requirePermission };

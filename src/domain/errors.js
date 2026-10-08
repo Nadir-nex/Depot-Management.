@@ -25,4 +25,4 @@ class ForbiddenError extends DomainError {
   constructor(message) { super('FORBIDDEN', message); }
 }
 
-module.exports = { DomainError, ValidationError, NotFoundError, ConflictError, StateError, ForbiddenError };
+module.exports = { ValidationError, NotFoundError, ConflictError, StateError, ForbiddenError };
