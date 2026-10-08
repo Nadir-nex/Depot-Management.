@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="modules/orders/orders.css" />
   <link rel="stylesheet" href="modules/staff/staff.css" />
   <link rel="stylesheet" href="modules/deliveries/deliveries.css" />
+  <link rel="stylesheet" href="modules/warnings/warnings.css" />
 </head>
 <body>
   <div class="app">
@@ -29,11 +30,17 @@
         <button class="nav-btn" data-module="orders">🧾 الطلبيات</button>
         <button class="nav-btn" data-module="staff">👷 الموظفون والمركبات</button>
         <button class="nav-btn" data-module="deliveries">🚚 شحنة التوصيل</button>
-        <button class="nav-btn" data-module="dashboard">📊 اللوحة</button>
         <button class="nav-btn" data-module="export">💾 تصدير قاعدة البيانات</button>
       </nav>
 
-      <div class="sidebar-foot">v0.5 — المخزون + الزبائن + الطلبيات + الطاقم + التوصيل</div>
+      <div class="sidebar-foot">
+        <div class="warn-box" id="side-warnings">
+          <div class="warn-title">التنبيهات</div>
+          <div class="warn-row sev-danger" data-sev="danger" title="عرض المشاكل الحرجة">🔴 <strong id="w-danger">—</strong> مشاكل حرجة</div>
+          <div class="warn-row sev-warn" data-sev="warn" title="عرض ما يحتاج مراجعة">🟠 <strong id="w-warn">—</strong> تحتاج مراجعة</div>
+          <div class="warn-row sev-info" data-sev="info" title="عرض المعلومات">🔵 <strong id="w-info">—</strong> معلومات</div>
+        </div>
+      </div>
     </aside>
 
     <!-- Main content -->
@@ -47,6 +54,7 @@
   <script src="modules/orders/orders.js"></script>
   <script src="modules/staff/staff.js"></script>
   <script src="modules/deliveries/deliveries.js"></script>
+  <script src="modules/warnings/warnings.js"></script>
   <script>
     const root = document.getElementById('module-root');
     const btns = document.querySelectorAll('.nav-btn');
@@ -59,7 +67,7 @@
 
     const names = {
       customers: 'الزبائن', orders: 'الطلبيات',
-      staff: 'الموظفون والمركبات', deliveries: 'شحنة التوصيل', dashboard: 'اللوحة'
+      staff: 'الموظفون والمركبات', deliveries: 'شحنة التوصيل'
     };
 
     function load(module) {
@@ -78,7 +86,9 @@
       } else {
         root.innerHTML = comingSoon(names[module] || module);
       }
+      if (window.WarningsWidget) window.WarningsWidget.refresh();
     }
+    window.__loadModule = load;
 
     btns.forEach(b => b.addEventListener('click', () => load(b.dataset.module)));
     load('inventory');

@@ -11,7 +11,7 @@
   --danger: #e53935;
   --warn: #fb8c00;
   --ok: #2e7d32;
-  --radius: 19px;
+  --radius: 17px;
 }
 
 * { box-sizing: border-box; }
@@ -28,36 +28,36 @@ html, body {
 
 /* Sidebar — appears on right automatically in RTL */
 .sidebar {
-  width: 338px;
+  width: 298px;
   background: linear-gradient(180deg, #ffffff 0%, var(--cyan-50) 100%);
   border-left: 1px solid var(--cyan-100);
-  padding: 24px 19px;
+  padding: 21px 17px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 19px;
   position: sticky;
   top: 0;
   height: 100vh;
 }
 
-.brand { display: flex; gap: 16px; align-items: center; }
+.brand { display: flex; gap: 14px; align-items: center; }
 .brand-icon {
-  width: 59px; height: 59px; border-radius: 16px;
+  width: 52px; height: 52px; border-radius: 14px;
   background: linear-gradient(135deg, var(--cyan-500), var(--cyan-600));
   display: flex; align-items: center; justify-content: center;
-  font-size: 30px; color: #fff;
+  font-size: 26px; color: #fff;
 }
-.brand-title { font-weight: 800; font-size: 24px; }
-.brand-sub { font-size: 15px; color: var(--muted); }
+.brand-title { font-weight: 800; font-size: 21px; }
+.brand-sub { font-size: 13px; color: var(--muted); }
 
-.nav { display: flex; flex-direction: column; gap: 11px; }
+.nav { display: flex; flex-direction: column; gap: 10px; }
 .nav-btn {
   border: 1px solid transparent;
   background: transparent;
   text-align: right;
-  padding: 15px 16px;
-  border-radius: 14px;
-  font-size: 20px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  font-size: 18px;
   cursor: pointer;
   color: var(--ink);
   transition: all .15s ease;
@@ -70,27 +70,27 @@ html, body {
   box-shadow: 0 8px 22px rgba(2,136,209,.25);
 }
 
-.sidebar-foot { margin-top: auto; font-size: 16px; color: var(--muted); text-align: center; }
+.sidebar-foot { margin-top: auto; font-size: 14px; color: var(--muted); text-align: center; }
 
-.main { flex: 1; padding: 30px; max-width: none; min-width: 0; }
+.main { flex: 1; padding: 26px; max-width: none; min-width: 0; }
 
 .soon {
   background: var(--card);
   border: 1px solid var(--cyan-100);
   border-radius: var(--radius);
-  padding: 54px;
+  padding: 48px;
   text-align: center;
   color: var(--muted);
 }
 
 #toast {
   position: fixed;
-  bottom: 30px;
+  bottom: 26px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
-  padding: 16px 30px;
-  border-radius: 14px;
-  font-size: 20px;
+  padding: 14px 26px;
+  border-radius: 12px;
+  font-size: 18px;
   font-weight: 700;
   opacity: 0;
   pointer-events: none;

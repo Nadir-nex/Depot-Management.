@@ -102,9 +102,24 @@
 
   function renderBuilderCustomer() {
     const box = document.getElementById('o-customer-box');
-    if (!builder.customer) { box.innerHTML = '<p class="hint">اختر زبوناً من البحث أدناه أو أنشئ زبوناً جديداً.</p>'; return; }
+    if (!builder.customer) { box.innerHTML = '<p class="hint">اختر زبوناً أولاً — السعر يعتمد على نوع الزبون.</p>'; return; }
     const c = builder.customer;
-    box.innerHTML = `<div class="o-customer-card"><strong>${escapeHtml(c.name)}</strong> <small style="color:#6b8aa0">رقم ${c.id}</small><br><small>${escapeHtml(c.district_name || 'بدون منطقة')}</small></div>`;
+    const typeTxt = c.customer_type_name ? `${escapeHtml(c.customer_type_name)} (+${c.customer_markup}%)` : 'بدون نوع (سعر التكلفة)';
+    box.innerHTML = `<div class="o-customer-card"><strong>${escapeHtml(c.name)}</strong> <small style="color:#6b8aa0">رقم ${c.id}</small><br><small>${escapeHtml(c.district_name || 'بدون منطقة')} — ${typeTxt}</small></div>`;
+  }
+
+  async function refreshBuilderPrices() {
+    if (!builder.customer || !builder.items.length) return;
+    for (const it of builder.items) {
+      if (it.manual) continue;
+      try {
+        const pr = await window.api.getProductPricing(it.item_id, builder.customer.id);
+        it.price = pr.price;
+        it.stock = pr.stock;
+        it.cost = pr.cost;
+      } catch {}
+    }
+    renderBuilderItems();
   }
 
   async function searchCustomersUI() {
@@ -127,15 +142,15 @@
     const q = document.getElementById('o-product-search').value.trim();
     const box = document.getElementById('o-product-results');
     if (!q) { box.innerHTML = ''; return; }
-    const rows = await window.api.searchProductsForOrder(pMode, q);
+    if (!builder.customer) { box.innerHTML = '<p class="hint">اختر الزبون أولاً — السعر يعتمد على نوعه.</p>'; return; }
+    const rows = await window.api.searchProductsForOrder(pMode, q, builder.customer.id);
     box.innerHTML = rows.length ? '' : '<p class="hint">لا منتج مطابق — أنشئ المنتج في المخزون أولاً.</p>';
     for (const p of rows.slice(0, 8)) {
       const div = document.createElement('div');
       div.className = 'o-result-row';
-      const priceTxt = p.price > 0 ? `${p.price} DA` : 'بدون سعر!';
-      div.innerHTML = `<span><strong>${escapeHtml(p.name)}</strong><br><small>المتوفر: ${p.stock} — السعر: ${priceTxt}</small></span>
+      const priceTxt = p.price > 0 ? `${p.price} DA` : 'بدون سعر/مخزون — يمكن إضافة سعر يدوي';
+      div.innerHTML = `<span><strong>${escapeHtml(p.name)}</strong><br><small>المتوفر: ${p.stock} — السعر (${escapeHtml(builder.customer.customer_type_name || 'تكلفة')}): ${priceTxt}</small></span>
         <span><input class="o-qty" type="number" min="1" step="1" value="1" dir="ltr" data-qty="${p.id}" /> <button class="link" data-add="${p.id}">إضافة</button></span>`;
-      div._p = p;
       box.appendChild(div);
       div.querySelector('[data-add]').onclick = () => {
         const qty = Math.trunc(Number(div.querySelector('[data-qty]').value));
@@ -146,12 +161,13 @@
 
   function addBuilderItem(p, qty) {
     const err = document.getElementById('o-err');
+    if (!builder.customer) { err.textContent = 'اختر الزبون أولاً'; return; }
     if (!Number.isInteger(qty) || qty <= 0) { err.textContent = 'الكمية يجب أن تكون عدداً صحيحاً أكبر من 0'; return; }
-    if (!(p.price > 0)) { err.textContent = 'لا يوجد سعر بيع صالح لهذا المنتج — حدّث السعر في المخزون أولاً'; return; }
     err.textContent = '';
-    const ex = builder.items.find(i => i.item_id === p.id);
-    if (ex) ex.qty += qty;
-    else builder.items.push({ item_id: p.id, name: p.name, qty, price: p.price, stock: p.stock });
+    // price 0 (no stock/cost) allowed — user fixes with manual override below
+    const ex = builder.items.find(i => i.item_id === p.id && !i.manual);
+    if (ex && p.price > 0) { ex.qty += qty; ex.price = p.price; ex.stock = p.stock; ex.cost = p.cost; }
+    else builder.items.push({ item_id: p.id, name: p.name, qty, price: p.price || 0, stock: p.stock, cost: p.cost || 0, manual: !(p.price > 0) });
     renderBuilderItems();
   }
 
@@ -162,8 +178,11 @@
       const div = document.createElement('div');
       div.className = 'o-item-row';
       const warn = it.qty > it.stock ? ' ⚠ المخزون غير كافٍ' : '';
-      div.innerHTML = `<span class="grow"><strong>${escapeHtml(it.name)}</strong><br><small>${it.qty} × ${it.price} = ${it.qty * it.price} DA${warn}</small></span>
-        <input type="number" min="1" step="1" value="${it.qty}" dir="ltr" data-eqty="${idx}" />
+      const noprice = !(it.price > 0) ? ' ⚠ أدخل سعراً يدوياً' : '';
+      const manTag = it.manual ? ' (يدوي)' : '';
+      div.innerHTML = `<span class="grow"><strong>${escapeHtml(it.name)}</strong><br><small>${it.qty} × ${it.price} = ${it.qty * it.price} DA${manTag}${warn}${noprice}</small></span>
+        <input type="number" min="1" step="1" value="${it.qty}" dir="ltr" data-eqty="${idx}" title="الكمية" />
+        <input type="number" min="1" step="1" value="${it.price}" dir="ltr" data-eprice="${idx}" title="السعر (يدوي مسموح)" style="max-width:90px" />
         <button class="c-phone-del" data-rm="${idx}">×</button>`;
       box.appendChild(div);
     });
@@ -197,11 +216,12 @@
     const o = await window.api.getOrder(id);
     if (!o || o.status !== 'draft') return;
     newBuilder(id);
-    builder.customer = { id: o.customer_id, name: o.customer_name, district_name: o.district_name };
-    builder.items = o.items.map(i => ({ item_id: i.item_id, name: i.item_name, qty: i.qty, price: i.unit_price, stock: i.qty }));
-    // refresh current price/stock for display
+    builder.customer = { id: o.customer_id, name: o.customer_name, district_name: o.district_name, customer_type_name: o.customer_type_name, customer_markup: o.customer_markup };
+    // Respect persisted order-line manual flag: auto lines refresh from product_prices,
+    // intentional manual lines (is_manual=1) stay fixed and are never flagged as outdated.
+    builder.items = o.items.map(i => ({ item_id: i.item_id, name: i.item_name, qty: i.qty, price: i.unit_price, stock: i.qty, cost: 0, manual: Number(i.is_manual) === 1 }));
     for (const it of builder.items) {
-      try { const pr = await window.api.getProductPricing(it.item_id); it.stock = pr.stock; } catch {}
+      try { const pr = await window.api.getProductPricing(it.item_id, builder.customer.id); it.stock = pr.stock; it.cost = pr.cost; } catch {}
     }
     builder.discount = o.discount_amount || 0;
     builder.notes = o.notes || '';
@@ -222,11 +242,18 @@
     const err = document.getElementById('o-err');
     if (!builder.customer) { err.textContent = 'اختر الزبون أولاً'; return; }
     if (!builder.items.length) { err.textContent = 'الطلبية يجب أن تحتوي على منتج واحد على الأقل'; return; }
+    for (const it of builder.items) {
+      if (!(it.price > 0)) { err.textContent = `أدخل سعراً يدوياً لـ «${it.name}» (لا يوجد سعر تلقائي)`; return; }
+    }
     const payload = {
       customer_id: builder.customer.id,
       notes: document.getElementById('o-f-notes').value,
       discount_amount: Number(document.getElementById('o-f-discount').value) || 0,
-      items: builder.items.map(i => ({ item_id: i.item_id, qty: i.qty }))
+      // Auto lines omit unit_price so the backend resolves the persisted effective price;
+      // manual order lines send their edited price with is_manual=1.
+      items: builder.items.map(i => (i.manual
+        ? { item_id: i.item_id, qty: i.qty, unit_price: i.price, is_manual: 1 }
+        : { item_id: i.item_id, qty: i.qty, is_manual: 0 }))
     };
     if (payload.discount_amount < 0) { err.textContent = 'التخفيض يجب أن يكون 0 أو أكثر'; return; }
     try {
@@ -243,7 +270,7 @@
     const o = await window.api.getOrder(id);
     if (!o) return;
     const det = document.getElementById('o-detail');
-    const lines = o.items.map(i => `<tr><td>${escapeHtml(i.item_name)}</td><td>${i.qty} × ${i.unit_price}</td><td><strong>${i.qty * i.unit_price}</strong></td></tr>`).join('');
+    const lines = o.items.map(i => `<tr><td>${escapeHtml(i.item_name)}${Number(i.is_manual) === 1 ? ' <small style="color:#b26a00">(يدوي)</small>' : ''}</td><td>${i.qty} × ${i.unit_price}</td><td><strong>${i.qty * i.unit_price}</strong></td></tr>`).join('');
     const warnHtml = o.warnings.length
       ? `<div class="warnbox">⚠ المخزون غير كافٍ: ${o.warnings.map(w => `منتج #${w.item_id} (مطلوب ${w.qty}، متوفر ${w.stock})`).join('، ')}</div>` : '';
     det.innerHTML = `
@@ -251,6 +278,7 @@
         <h2>طلبية #${o.id}</h2>
         <div class="ref" dir="ltr">C${o.customer_id}-${o.id}${o.customer_deleted ? ' — الزبون محذوف' : ''}</div>
         <div>الزبون: <strong>${escapeHtml(o.customer_name)}</strong> (رقم ${o.customer_id}) <button class="link" data-gocust="${o.customer_id}">عرض الزبون</button></div>
+        <div>النوع: ${o.customer_type_name ? `${escapeHtml(o.customer_type_name)} (+${o.customer_markup}%)` : 'بدون نوع (تكلفة)'}</div>
         <div>المنطقة: ${escapeHtml(o.district_name || '—')}</div>
         <div>أُنشئت: ${escapeHtml((o.created_at || '').slice(0, 16))} — التوصيل الفعلي: ${escapeHtml(o.delivery_date || '—')}</div>
         <div style="margin:6px 0">الحالة: ${statusPill(o.status)}</div>
@@ -330,23 +358,26 @@
     ['all', 'draft', 'active', 'done'].forEach(k => document.getElementById('o-card-' + k).onclick = () => setCard(k));
     root.querySelectorAll('.close-modal').forEach(b => b.onclick = () => close(b.dataset.close));
 
-    // customer search + select + new
+    // customer search + select + new — prices follow selected type
     document.getElementById('o-customer-search').oninput = searchCustomersUI;
     document.getElementById('o-customer-results').onclick = async (e) => {
       const b = e.target.closest('[data-cid]');
       if (!b) return;
       const c = await window.api.getCustomer(Number(b.dataset.cid));
       if (!c || c.deleted_at) return;
-      builder.customer = { id: c.id, name: c.name, district_name: c.district_name };
+      builder.customer = { id: c.id, name: c.name, district_name: c.district_name, customer_type_name: c.customer_type_name, customer_markup: c.customer_markup, customer_type_id: c.customer_type_id };
       document.getElementById('o-customer-results').innerHTML = '';
       document.getElementById('o-customer-search').value = '';
       renderBuilderCustomer();
+      await refreshBuilderPrices();
+      searchProductsUI();
     };
     document.getElementById('o-btn-customer-new').onclick = () => {
       window.CustomersModule.openCreate((newId) => {
         window.api.getCustomer(newId).then(c => {
-          builder.customer = { id: c.id, name: c.name, district_name: c.district_name };
+          builder.customer = { id: c.id, name: c.name, district_name: c.district_name, customer_type_name: c.customer_type_name, customer_markup: c.customer_markup, customer_type_id: c.customer_type_id };
           renderBuilderCustomer();
+          refreshBuilderPrices();
         });
       });
     };
@@ -367,11 +398,20 @@
     };
     document.getElementById('o-items').onchange = (e) => {
       const q = e.target.closest('[data-eqty]');
-      if (!q) return;
-      const v = Math.trunc(Number(q.value));
-      if (!Number.isInteger(v) || v <= 0) { renderBuilderItems(); return; }
-      builder.items[Number(q.dataset.eqty)].qty = v;
-      renderBuilderItems();
+      const pr = e.target.closest('[data-eprice]');
+      if (q) {
+        const v = Math.trunc(Number(q.value));
+        if (!Number.isInteger(v) || v <= 0) { renderBuilderItems(); return; }
+        builder.items[Number(q.dataset.eqty)].qty = v;
+        renderBuilderItems();
+      } else if (pr) {
+        const v = Math.round(Number(pr.value));
+        if (!Number.isFinite(v) || v <= 0) { renderBuilderItems(); return; }
+        const it = builder.items[Number(pr.dataset.eprice)];
+        it.price = v;
+        it.manual = true;
+        renderBuilderItems();
+      }
     };
     document.getElementById('o-f-discount').oninput = (e) => {
       builder.discount = Number(e.target.value) || 0;

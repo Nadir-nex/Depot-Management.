@@ -1,0 +1,9 @@
+.dash h1 { margin: 0; font-size: 31px; }
+.dash-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 19px; }
+.dash-actions { display: flex; gap: 12px; }
+.dash .cards { grid-template-columns: repeat(4, 1fr); }
+.dash-cat { cursor: default; }
+.sev { display: inline-block; padding: 3px 12px; border-radius: 24px; font-size: 14px; font-weight: 700; }
+.sev.danger { background: #ffebee; color: #c62828; }
+.sev.warn { background: #fff3e0; color: #ef6c00; }
+.sev.info { background: #e3f2fd; color: #1565c0; }

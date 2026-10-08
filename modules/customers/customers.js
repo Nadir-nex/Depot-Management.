@@ -38,6 +38,23 @@
     return ds;
   }
 
+  // DB-driven types — never hardcoded. You add names + % yourself.
+  async function loadTypes() {
+    const ts = await window.api.listCustomerTypes();
+    const m = document.getElementById('c-f-type');
+    if (m) {
+      const keep = m.value;
+      m.innerHTML = '<option value="">— بدون نوع (سعر التكلفة) —</option>' + ts.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (+${t.markup_percentage}%)</option>`).join('');
+      if (keep) m.value = keep;
+    }
+    return ts;
+  }
+
+  function typeLabel(r) {
+    if (!r.customer_type_name) return '<span style="color:#6b8aa0">— بدون نوع —</span>';
+    return `<span class="pill" style="background:#e8f5e9;border:1px solid #2e7d32;color:#2e7d32">${escapeHtml(r.customer_type_name)} +${r.customer_markup}%</span>`;
+  }
+
   function setSearchMode(mode) {
     searchMode = mode;
     document.querySelectorAll('#c-modes .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
@@ -61,7 +78,7 @@
     const districtId = d ? Number(d) : null;
     const rows = await window.api.listCustomers({ mode: searchMode, query, districtId, deleted: listView });
     const body = document.getElementById('c-body');
-    const cols = 4;
+    const cols = 5;
     body.innerHTML = rows.length ? '' : `<tr><td colspan="${cols}" style="text-align:center;color:#6b8aa0">${listView === 'deleted' ? 'لا زبائن محذوفين' : 'لا زبائن — أضف زبون جديد'}</td></tr>`;
     for (const r of rows) {
       const tr = document.createElement('tr');
@@ -72,6 +89,7 @@
         <td><strong>${r.id}</strong></td>
         <td><strong>${escapeHtml(r.name)}</strong></td>
         <td>${escapeHtml(r.district_name || '—')}</td>
+        <td>${typeLabel(r)}</td>
         <td>${action}</td>`;
       body.appendChild(tr);
     }
@@ -128,7 +146,7 @@
       const res = await fetch('modules/customers/customers.html');
       const tmp = document.createElement('div');
       tmp.innerHTML = await res.text();
-      for (const id of ['c-modal', 'c-modal-district']) {
+      for (const id of ['c-modal', 'c-modal-district', 'c-modal-type']) {
         const n = tmp.querySelector('#' + id);
         if (n) document.body.appendChild(n);
       }
@@ -142,7 +160,7 @@
 
   async function openCreate(onCreated) {
     await ensureModals();
-    await loadDistricts();
+    await Promise.all([loadDistricts(), loadTypes()]);
     editingId = null;
     createPhones = [];
     afterCreate = typeof onCreated === 'function' ? onCreated : null;
@@ -151,6 +169,7 @@
     document.getElementById('c-meta').classList.add('hidden');
     document.getElementById('c-f-name').value = '';
     document.getElementById('c-f-district').value = '';
+    document.getElementById('c-f-type').value = '';
     document.getElementById('c-f-newphone').value = '';
     document.getElementById('c-f-lat').value = '';
     document.getElementById('c-f-lng').value = '';
@@ -166,7 +185,7 @@
 
   async function openDetail(id) {
     await ensureModals();
-    await loadDistricts();
+    await Promise.all([loadDistricts(), loadTypes()]);
     const cust = await window.api.getCustomer(id);
     if (!cust) return;
     editingId = id;
@@ -177,6 +196,7 @@
     document.getElementById('c-field-id').textContent = cust.id;
     document.getElementById('c-f-name').value = cust.name || '';
     document.getElementById('c-f-district').value = cust.district_id || '';
+    document.getElementById('c-f-type').value = cust.customer_type_id || '';
     document.getElementById('c-f-newphone').value = '';
     document.getElementById('c-f-lat').value = cust.latitude ?? '';
     document.getElementById('c-f-lng').value = cust.longitude ?? '';
@@ -205,6 +225,8 @@
     ).join('') + (orders.length > 10 ? `<small>… و ${orders.length - 10} أخرى</small>` : '') + '<br><small>سجل الدفعات سيظهر هنا لاحقاً.</small>';
   }
 
+  let editingDistrictId = null;
+
   async function refreshDistrictList() {
     const ds = await window.api.listDistricts();
     const box = document.getElementById('c-district-list');
@@ -212,13 +234,34 @@
     for (const d of ds) {
       const div = document.createElement('div');
       div.className = 'c-district-row';
-      div.innerHTML = `<span>${escapeHtml(d.name)}</span>`;
+      div.innerHTML = `<span>${escapeHtml(d.name)}</span><span><button class="link" data-d-edit="${d.id}">تعديل</button> <button class="link" data-d-del="${d.id}">حذف</button></span>`;
+      box.appendChild(div);
+    }
+  }
+
+  function resetDistrictForm() {
+    editingDistrictId = null;
+    document.getElementById('c-district-title').textContent = 'المناطق';
+    document.getElementById('c-f-district-name').value = '';
+    document.getElementById('c-btn-save-district').textContent = 'إضافة';
+    document.getElementById('c-btn-del-district').classList.add('hidden');
+  }
+
+  async function refreshTypeList() {
+    const ts = await window.api.listCustomerTypes();
+    const box = document.getElementById('c-type-list');
+    box.innerHTML = ts.length ? '' : '<p class="hint">لا أنواع بعد — أضف النوع الأول (الاسم + النسبة).</p>';
+    for (const t of ts) {
+      const div = document.createElement('div');
+      div.className = 'c-district-row';
+      div.innerHTML = `<span><strong>${escapeHtml(t.name)}</strong> <small>+${t.markup_percentage}%</small></span>
+        <span><button class="link" data-tedit="${t.id}">تعديل</button> <button class="link" data-tdel="${t.id}">حذف</button></span>`;
       box.appendChild(div);
     }
   }
 
   function bindModalHandlers() {
-    document.querySelectorAll('#c-modal .close-modal, #c-modal-district .close-modal')
+    document.querySelectorAll('#c-modal .close-modal, #c-modal-district .close-modal, #c-modal-type .close-modal')
       .forEach(b => b.onclick = () => close(b.dataset.close));
 
     // add phone (create: local row + live dup check; edit: immediate save)
@@ -263,9 +306,11 @@
 
     // save (create) / update (edit)
     document.getElementById('c-btn-save').onclick = async () => {
+      const typeVal = document.getElementById('c-f-type').value;
       const payload = {
         name: document.getElementById('c-f-name').value,
         district_id: Number(document.getElementById('c-f-district').value) || null,
+        customer_type_id: typeVal ? Number(typeVal) : null,
         latitude: document.getElementById('c-f-lat').value,
         longitude: document.getElementById('c-f-lng').value,
         notes: document.getElementById('c-f-notes').value
@@ -311,13 +356,90 @@
 
     document.getElementById('c-btn-save-district').onclick = async () => {
       try {
-        await window.api.addDistrict({ name: document.getElementById('c-f-district-name').value });
-        document.getElementById('c-f-district-name').value = '';
+        if (editingDistrictId) await window.api.updateDistrict({ id: editingDistrictId, name: document.getElementById('c-f-district-name').value });
+        else await window.api.addDistrict({ name: document.getElementById('c-f-district-name').value });
         document.getElementById('c-err-district').textContent = '';
+        resetDistrictForm();
         await refreshDistrictList();
         await loadDistricts();
         maybeRefreshList();
       } catch (e) { document.getElementById('c-err-district').textContent = e.message; }
+    };
+
+    document.getElementById('c-btn-del-district').onclick = async () => {
+      if (!editingDistrictId) return;
+      if (!window.confirm('حذف هذه المنطقة؟ ستصبح زبائنها بدون منطقة.')) return;
+      try {
+        await window.api.deleteDistrict(editingDistrictId);
+        document.getElementById('c-err-district').textContent = '';
+        resetDistrictForm();
+        await refreshDistrictList();
+        await loadDistricts();
+        maybeRefreshList();
+      } catch (e) { document.getElementById('c-err-district').textContent = e.message; }
+    };
+
+    document.getElementById('c-district-list').onclick = async (e) => {
+      const ed = e.target.closest('[data-d-edit]');
+      const del = e.target.closest('[data-d-del]');
+      if (ed) {
+        const ds = await window.api.listDistricts();
+        const d = ds.find(x => x.id === Number(ed.dataset.dEdit));
+        if (!d) return;
+        editingDistrictId = d.id;
+        document.getElementById('c-district-title').textContent = `تعديل المنطقة #${d.id}`;
+        document.getElementById('c-f-district-name').value = d.name;
+        document.getElementById('c-btn-save-district').textContent = 'حفظ';
+        document.getElementById('c-btn-del-district').classList.remove('hidden');
+      } else if (del) {
+        if (!window.confirm('حذف هذه المنطقة؟ ستصبح زبائنها بدون منطقة.')) return;
+        try {
+          await window.api.deleteDistrict(Number(del.dataset.dDel));
+          if (editingDistrictId === Number(del.dataset.dDel)) resetDistrictForm();
+          await refreshDistrictList();
+          await loadDistricts();
+          maybeRefreshList();
+        } catch (err) { document.getElementById('c-err-district').textContent = err.message; }
+      }
+    };
+
+    document.getElementById('c-btn-save-type').onclick = async () => {
+      try {
+        await window.api.addCustomerType({
+          name: document.getElementById('c-f-type-name').value,
+          markup_percentage: document.getElementById('c-f-type-pct').value
+        });
+        document.getElementById('c-f-type-name').value = '';
+        document.getElementById('c-err-type').textContent = '';
+        await refreshTypeList();
+        await loadTypes();
+        maybeRefreshList();
+      } catch (e) { document.getElementById('c-err-type').textContent = e.message; }
+    };
+
+    document.getElementById('c-type-list').onclick = async (e) => {
+      const ed = e.target.closest('[data-tedit]');
+      const del = e.target.closest('[data-tdel]');
+      if (ed) {
+        const cur = (await window.api.listCustomerTypes()).find(t => t.id === Number(ed.dataset.tedit));
+        if (!cur) return;
+        const nn = window.prompt('اسم النوع:', cur.name);
+        if (nn === null) return;
+        const np = window.prompt('النسبة %:', String(cur.markup_percentage));
+        if (np === null) return;
+        try {
+          await window.api.updateCustomerType({ id: cur.id, name: nn, markup_percentage: np });
+          document.getElementById('c-err-type').textContent = '';
+          await refreshTypeList(); await loadTypes(); maybeRefreshList();
+        } catch (err) { document.getElementById('c-err-type').textContent = err.message; }
+      } else if (del) {
+        if (!window.confirm('حذف هذا النوع؟')) return;
+        try {
+          await window.api.deleteCustomerType(Number(del.dataset.tdel));
+          document.getElementById('c-err-type').textContent = '';
+          await refreshTypeList(); await loadTypes(); maybeRefreshList();
+        } catch (err) { document.getElementById('c-err-type').textContent = err.message; }
+      }
     };
 
     document.getElementById('c-history').onclick = (e) => {
@@ -336,18 +458,23 @@
       const res = await fetch('modules/customers/customers.html');
       const tmp = document.createElement('div');
       tmp.innerHTML = await res.text();
-      tmp.querySelectorAll('#c-modal, #c-modal-district').forEach(n => n.remove());
+      tmp.querySelectorAll('#c-modal, #c-modal-district, #c-modal-type').forEach(n => n.remove());
       root.innerHTML = tmp.innerHTML;
     }
     await ensureModals();
-    await loadDistricts();
+    await Promise.all([loadDistricts(), loadTypes()]);
 
     document.getElementById('c-btn-add').onclick = () => openCreate();
     document.getElementById('c-btn-district').onclick = async () => {
       document.getElementById('c-err-district').textContent = '';
-      document.getElementById('c-f-district-name').value = '';
+      resetDistrictForm();
       await refreshDistrictList();
       open('c-modal-district');
+    };
+    document.getElementById('c-btn-type').onclick = async () => {
+      document.getElementById('c-err-type').textContent = '';
+      await refreshTypeList();
+      open('c-modal-type');
     };
     document.getElementById('c-btn-refresh').onclick = refresh;
     document.getElementById('c-search').oninput = () => refresh();

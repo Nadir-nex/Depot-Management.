@@ -125,11 +125,11 @@ Key queries: `listItems` (grouped with `SUM(qty)`, last buy/sell subqueries, `MI
 - **Products view:** grouped table (المنتج/باركود/الفئة/الشركة/الكمية/أقرب انتهاء/آخر شراء/آخر بيع/+شحنة).
 - **Expiry view:** one row per shipment with expiry (المنتج/الفئة/الشركة/كمية الشحنة/الانتهاء/شراء/بيع/المورّد) — same product with 2 batches shows as 2 rows.
 - **Modals:** منتج جديد (name + barcode + category/company selects), فئة جديدة (name + color), شركة جديدة (name + color), شحنة جديدة (product select, QTY, supplier, buy/sell, expiry). All example placeholders prefixed `مثلا:`.
-- **Styling:** hardcoded scaled px (sidebar 338px, base fonts 19–20px, table 19px, modal 567px, radius 19–22px), `.pill` colored badges, `.badge` expiry states, `.card.clickable` hover/active.
+- **Styling:** hardcoded scaled px, shrunk ~12% from the ×1.35 baseline but still full-window 1080p 16:9, no zoom variable (sidebar 298px, base fonts 17–18px, table 17px, modal 500px / wide 600px, radius 17–19px), `.pill` colored badges, `.badge` expiry states, `.card.clickable` hover/active.
 
-### 16.4 Deliberately NOT in v0.1
+### 16.4 Deliberately NOT in v0.1 (PARTIALLY SUPERSEDED — CRUD edit/delete added later)
 
-Edit/delete product, stock-out/spoilage deduction, lot splitting, FIFO/valuation, average cost, barcode printing, supplier table, transfers, notifications. Prices preserved per shipment so future Orders can snapshot `unit_price` safely.
+~~Edit/delete product~~ — now implemented (products prefill-modal edit; delete blocked with Arabic error if shipments/order history exist). Categories/companies/districts: full edit/delete (refs `SET NULL`, never delete business records). Shipments: edit (product fixed, qty/price/expiry/supplier) + delete; both recalculate wavg + stock, old order snapshots untouched. Still NOT: stock-out/deduction engine (Phase 3), lot splitting, FIFO/valuation, barcode printing, supplier table, transfers. Prices preserved per shipment so Orders snapshot `unit_price` safely.
 
 ---
 
@@ -160,19 +160,25 @@ Sidebar `🧾 الطلبيات` is live. Self-contained `modules/orders/` (html/
 
 ### Schema
 - `orders(id AUTOINCREMENT, customer_id→customers, delivery_date TEXT YYYY-MM-DD NULL, status DEFAULT 'draft', discount_amount REAL DEFAULT 0, notes, created_at, updated_at)` — no `delivery_shipment_id`, no payment/scout/tax fields. Customer FK is non-cascading: deleting a customer never deletes orders.
-- `order_items(id AUTOINCREMENT, order_id CASCADE, item_id→items, qty INT>0, unit_price REAL>0, created_at)`.
+- `order_items(id AUTOINCREMENT, order_id CASCADE, item_id→items, qty INT>0, unit_price REAL>0, is_manual INT DEFAULT 0, created_at)` — `unit_price` is the historical snapshot, `is_manual=1` marks order-line manual prices.
 - Statuses: draft→confirmed→waiting→out_for_delivery→delivered, plus cancelled from any pre-delivery state. Terminal states never reopen. `AUTOINCREMENT` keeps deleted IDs consumed forever.
 
 ### Business rules
 - One order = one customer (never merged). Reference `C{id}-{oid}` computed, never stored.
 - No editable order date; `created_at` only. Delivery date independently changeable until delivered/cancelled.
 - Empty orders rejected; duplicate product lines auto-combined (UI + API); integer qty only.
-- Price = highest receipt `sell_price` snapshotted into `unit_price`; zero-price products blocked with warning. Inventory `addShipment` now synchronizes all receipts of a product to the new max sell price (old orders keep their snapshot).
+- Price = persisted `product_prices` effective price (`COALESCE(manual_price, auto_price)`) snapshotted into `order_items.unit_price`; zero-price products blocked with warning. `shipments.sell_price` is legacy and never used. Old orders keep their snapshot; `is_manual` distinguishes intentional order-line overrides from stale auto prices.
 - No stock reservation/deduction on create/confirm — only yellow warnings. `discount 0<=d<=subtotal`, hidden in receipt when 0. All DA, no tax.
 - Delete = physical (IDs stay consumed); cancel = status. Delivered/cancelled read-only.
 - Search modes: id / reference (`C17-1042` parsed) / customer id / customer name / phone; filters: exact status + `active` group, date, district (via customer), newest/oldest sort. All server-side with joins.
 - Builder reuses `CustomersModule.openCreate(cb)` (customer modals moved to `document.body` so the popup works from Orders); detail links to customer card; customer card shows live order history (replaces old placeholder box).
-- IPC: `orders:list/get/create/update-draft/confirm/set-status/set-delivery-date/delete/customer-list`, `inventory:product-pricing/products-search`.
+- IPC: `orders:list/get/create/update-draft/confirm/set-status/set-delivery-date/delete/customer-list`, `inventory:product-pricing/products-search`, `pricing:cost:get/set`, `pricing:get`, `pricing:manual:set/clear`, `pricing:history`.
+
+### Persistent pricing layer
+- `product_costs(item_id PK → items CASCADE, current_cost REAL, updated_at)` — product-level basis, normally the quantity-weighted average `SUM(qty*buy_price)/SUM(qty)` from `shipments`; manually editable as a correction (shipment rows untouched; next receipt recomputes from ledger).
+- `product_prices(item_id CASCADE, customer_type_id RESTRICT, auto_price INT, manual_price INT NULL, UNIQUE(item_id, customer_type_id))` — effective price `COALESCE(manual_price, auto_price)`; `auto_price = Math.round(current_cost*(1+markup/100))`; markup stays in `customer_types` only.
+- `product_price_history(item_id CASCADE, customer_type_id CASCADE, price_value INT, change_type automatic|manual_override|manual_cleared, changed_at)` — one row per effective-price change only.
+- Central recompute: `recomputeItemTx()` on `add/update/deleteShipment` + `importReceipt` (affected products only, same transaction); `recomputePricesForTypeTx()` on customer-type markup change; `addCustomerType` backfills cost-bearing products; `deleteCustomerType` blocked while pricing rows exist. Unified product editor (fullscreen sheet, pricing panel RIGHT + info/cost panel LEFT) hosts metadata + inline current-cost edit (auto-saves on change, enlarged entry, no save button) + dynamic customer-type pricing rows (one div row per type, inline edit/clear, no HTML table); price history removed from the editor but still recorded in `product_price_history` for future dashboard use; no standalone pricing modal. Warnings group overlapping product codes per product with affected-products vs details counts.
 
 ---
 
@@ -213,3 +219,34 @@ Sidebar `🚚 شحنة التوصيل` is live; `💰 الدفعات` button rem
 - Lifecycle planned→in_progress (started_at + non-blocking stock preflight)→completed (completed_at); planning editable only before start (incl. ↑↓ reorder); per-order تسليم sets `delivered_at` + order delivered + actual date; post-launch removal preserves row with `removed_at`; planned deletes physically, started hides via `hidden_at`.
 - Stock-aware only: preflight compares need + other committed demand vs physical SUM; no allocation/deduction (deferred engine).
 - IPC: `deliveries:list/get/create/update/start/complete/hide/delete/add-order/remove-order/deliver-order/reorder-stops/eligible-orders/stock-check`.
+
+---
+
+## 21. Phase W — Warning system / التنبيهات (sidebar box, clickable)
+
+`📊 اللوحة` button removed (full dashboard remake deferred; `modules/dashboard/` files kept on disk, unwired). Warnings now live in the sidebar bottom: red-framed `التنبيهات` box (`#side-warnings`) with 3 clickable severity rows — 🔴 مشاكل حرجة (`danger`), 🟠 تحتاج مراجعة (`warn`), 🔵 معلومات (`info`) — implemented in `modules/warnings/` (`window.WarningsWidget`). Clicking a row opens a paginated modal (100/page with total/shown counts); clicking a warning routes by domain: zero_stock→Inventory highlight only (NO edit popup), no_cost/no_price→unified product editor, shipment→receipt editor, customer→card, order→receipt, delivery→detail, staff→module. Backend `getWarnings(opts)` in `db/database.js` — read-only, no writes, 2000 rows/check max, 5000 total max with `truncated` flag. IPC: `warnings:get`, `window.api.getWarnings`.
+
+### Thresholds (hardcoded, no settings screen)
+- `inactiveCustomerDays=30`, `staleDraftDays=7`, `waitingDays=7`, `idleDriverDays=3` (calendar days), `stuckDeliveryDays=2`, `quietDays=7`.
+
+### Implemented now (all 9 categories, ~40 checks)
+1. Inventory: zero_stock, expired_stock, near_expiry(90d), no_cost, no_price, incomplete_shipment (buy_price 0 or missing expiry), short_for_orders (committed demand vs SUM), negative_stock (always empty until Phase-3 deduction — future-proof).
+2. Pricing: customer_no_type, type_no_markup (0% = cost price, info), no_price, draft_outdated (draft auto line unit_price ≠ persisted effective price — order-line manual prices with is_manual=1 never flagged).
+3. Customers: no_phone, no_district, no_gps, dup_phone, inactive_customer (no orders in X days, incl. never-ordered).
+4. Orders: stale_draft, unassigned (confirmed/waiting with no active delivery), waiting_long, insufficient_stock.
+5. Deliveries: overdue_planned, stuck (in_progress too long), completed_undelivered, empty, has_removed (info).
+6. Employees: no_role, driver_no_activity (assigned but zero delivered), idle (any employee, calendar days), driver_multi.
+7. Vehicles: unavailable_assigned, multi_assigned, no_plate.
+8. Consistency: order_bad_customer/product, delivery_bad_driver/vehicle (incl. soft-deleted), deleted_active, bad_coords, dup_barcode (UNIQUE normally prevents).
+9. Activity: no_orders/no_deliveries/no_inventory/no_business in X days.
+
+### Deferred / limitations (to add later)
+- Working-days calendar (currently calendar days for idle/stuck).
+- Shipment-policy split for wavg after consumption (Phase 3); negative_stock check stays until then.
+- Per-warning mute/acknowledge, clickable jump-to-record links, push notifications.
+
+---
+
+## 22. Receipt CSV import (implemented)
+
+Locked 3-column format `product,purchase_price,quantity` (comma, dot decimals, UTF-8); root `items.csv` (306 names, price/qty empty) is the reference + alert-testing seed. Inventory header has `＋ استيراد CSV` (hidden file input, CSV parsed in renderer with quote support, `confirm()` preview, result line under toolbar). Backend `importReceipt(rows)` in `db/database.js` — transactional (all-or-nothing on unexpected error), exact-name match else create (no category/company touched), rows without usable price+qty create the product only (no-price/no-stock warnings), invalid qty (non-integer/≤0) or price recorded in per-row `skipped` report. No expiry/supplier on imported shipments (`sell_price` legacy 0). IPC: `receipts:import`. Future OCR step outputs rows in this same shape for human confirm before save.

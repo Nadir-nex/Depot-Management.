@@ -37,8 +37,20 @@ ipcMain.handle('shipments:detailed', (_e, search = '', catId = null, compId = nu
 ipcMain.handle('inventory:overview', () => db.getOverview());
 ipcMain.handle('categories:list', () => db.listCategories());
 ipcMain.handle('categories:add', (_e, payload) => db.addCategory(payload));
+ipcMain.handle('categories:update', (_e, payload) => db.updateCategory(payload));
+ipcMain.handle('categories:delete', (_e, id) => db.deleteCategory(id));
 ipcMain.handle('companies:list', () => db.listCompanies());
 ipcMain.handle('companies:add', (_e, payload) => db.addCompany(payload));
+ipcMain.handle('companies:update', (_e, payload) => db.updateCompany(payload));
+ipcMain.handle('companies:delete', (_e, id) => db.deleteCompany(id));
+ipcMain.handle('items:get', (_e, id) => db.getItem(id));
+ipcMain.handle('items:update', (_e, payload) => db.updateItem(payload));
+ipcMain.handle('items:delete', (_e, id) => db.deleteItem(id));
+ipcMain.handle('shipments:get', (_e, id) => db.getShipment(id));
+ipcMain.handle('shipments:update', (_e, payload) => db.updateShipment(payload));
+ipcMain.handle('shipments:delete', (_e, id) => db.deleteShipment(id));
+ipcMain.handle('districts:update', (_e, payload) => db.updateDistrict(payload));
+ipcMain.handle('districts:delete', (_e, id) => db.deleteDistrict(id));
 
 // ---- IPC: Customers (Phase A) ----
 ipcMain.handle('districts:list', () => db.listDistricts());
@@ -53,7 +65,13 @@ ipcMain.handle('customers:phones:add', (_e, payload) => db.addCustomerPhone(payl
 ipcMain.handle('customers:phones:delete', (_e, id) => db.deleteCustomerPhone(id));
 ipcMain.handle('customers:phones:check', (_e, phone, excludeId) => db.findPhoneOwners(phone, excludeId ?? null));
 
-// ---- IPC: Orders (Phase B) ----
+// ---- IPC: Customer types (Phase 1 — DB-driven) ----
+ipcMain.handle('customer-types:list', () => db.listCustomerTypes());
+ipcMain.handle('customer-types:add', (_e, payload) => db.addCustomerType(payload));
+ipcMain.handle('customer-types:update', (_e, payload) => db.updateCustomerType(payload));
+ipcMain.handle('customer-types:delete', (_e, id) => db.deleteCustomerType(id));
+
+// ---- IPC: Orders (Phase B + persisted pricing layer) ----
 ipcMain.handle('orders:list', (_e, opts) => db.listOrders(opts || {}));
 ipcMain.handle('orders:get', (_e, id) => db.getOrder(id));
 ipcMain.handle('orders:create', (_e, payload) => db.createOrder(payload));
@@ -63,8 +81,16 @@ ipcMain.handle('orders:set-status', (_e, id, to) => db.setOrderStatus(id, to));
 ipcMain.handle('orders:set-delivery-date', (_e, id, date) => db.setDeliveryDate(id, date));
 ipcMain.handle('orders:delete', (_e, id) => db.deleteOrder(id));
 ipcMain.handle('orders:customer-list', (_e, customerId) => db.listCustomerOrders(customerId));
-ipcMain.handle('inventory:product-pricing', (_e, itemId) => db.productPricing(itemId));
-ipcMain.handle('inventory:products-search', (_e, mode, query) => db.listProductsForOrder(mode, query));
+ipcMain.handle('inventory:product-pricing', (_e, itemId, customerId) => db.productPricing(itemId, customerId ?? null));
+ipcMain.handle('inventory:products-search', (_e, mode, query, customerId) => db.listProductsForOrder(mode, query, customerId ?? null));
+
+// ---- IPC: Persistent pricing layer (product_costs / product_prices / history) ----
+ipcMain.handle('pricing:cost:get', (_e, itemId) => db.getProductCost(Number(itemId)));
+ipcMain.handle('pricing:cost:set', (_e, payload) => db.setProductCost(Number(payload.item_id), payload.current_cost));
+ipcMain.handle('pricing:get', (_e, itemId) => db.getProductPrices(Number(itemId)));
+ipcMain.handle('pricing:manual:set', (_e, payload) => db.setProductManualPrice(Number(payload.item_id), Number(payload.customer_type_id), payload.manual_price));
+ipcMain.handle('pricing:manual:clear', (_e, payload) => db.clearProductManualPrice(Number(payload.item_id), Number(payload.customer_type_id)));
+ipcMain.handle('pricing:history', (_e, itemId, typeId) => db.getProductPriceHistory(Number(itemId), typeId ?? null));
 
 // ---- IPC: Staff & Vehicles (Phase C) ----
 ipcMain.handle('employees:list', (_e, opts) => db.listEmployees(opts || {}));
@@ -100,6 +126,11 @@ ipcMain.handle('deliveries:deliver-order', (_e, payload) => db.deliverOrder(payl
 ipcMain.handle('deliveries:reorder-stops', (_e, payload) => db.reorderStops(payload));
 ipcMain.handle('deliveries:eligible-orders', (_e, opts) => db.eligibleOrders(opts || {}));
 ipcMain.handle('deliveries:stock-check', (_e, id) => db.deliveryStockCheck(id));
+
+ipcMain.handle('receipts:import', (_e, rows) => db.importReceipt(rows));
+
+// ---- IPC: Warnings (Phase W — read-only) ----
+ipcMain.handle('warnings:get', (_e, opts) => db.getWarnings(opts || {}));
 
 // ---- IPC: Database export (manual backup only) ----
 ipcMain.handle('database:export', async () => {

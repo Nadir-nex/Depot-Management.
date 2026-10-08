@@ -1,25 +1,25 @@
-.dlv h1 { margin: 0; font-size: 35px; }
-.dlv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
-.dlv-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+.dlv h1 { margin: 0; font-size: 31px; }
+.dlv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 19px; }
+.dlv-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
 .dlv .cards { grid-template-columns: repeat(4, 1fr); }
 
 .stop {
   background: #fff; border: 1px solid var(--cyan-100);
-  border-radius: 14px; padding: 14px 18px; margin-bottom: 12px;
+  border-radius: 12px; padding: 12px 16px; margin-bottom: 11px;
 }
-.stop-head { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+.stop-head { display: flex; align-items: center; gap: 11px; font-size: 19px; font-weight: 800; margin-bottom: 7px; }
 .stop-num {
-  width: 44px; height: 44px; border-radius: 50%; flex: none;
+  width: 39px; height: 39px; border-radius: 50%; flex: none;
   background: linear-gradient(135deg, var(--cyan-500), var(--cyan-600));
-  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px;
+  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 19px;
 }
-.stop-orders { margin-right: 56px; }
+.stop-orders { margin-right: 49px; }
 .dorder-row {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 8px 0; border-top: 1px dashed #cfd8dc; font-size: 19px;
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  padding: 7px 0; border-top: 1px dashed #cfd8dc; font-size: 17px;
 }
-.dorder-row .grow { flex: 1; min-width: 200px; }
+.dorder-row .grow { flex: 1; min-width: 180px; }
 .done-mark { color: var(--ok); font-weight: 800; }
 
-.dlv-info { background: #fff; border: 1px solid var(--cyan-100); border-radius: 14px; padding: 18px 22px; font-size: 20px; margin-bottom: 14px; }
-.dlv-info h2 { margin: 0 0 8px; font-size: 30px; }
+.dlv-info { background: #fff; border: 1px solid var(--cyan-100); border-radius: 12px; padding: 16px 19px; font-size: 18px; margin-bottom: 12px; }
+.dlv-info h2 { margin: 0 0 7px; font-size: 26px; }
