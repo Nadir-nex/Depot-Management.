@@ -3,209 +3,43 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>إدارة المستودع — النسخة الجديدة</title>
+  <title>Depot — إدارة المستودع</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app">
-    <header class="topbar">
-      <div class="brand">📦 المستودع <span class="sub">v0.2 — product + stock receipt slice</span></div>
-      <div class="transport" id="transport">…</div>
-    </header>
-    <main class="grid">
-      <section class="card">
-        <h2>منتج جديد</h2>
-        <form id="product-form">
-          <label>SKU<input name="sku" required maxlength="64" placeholder="مثلا: SUGAR-1KG" /></label>
-          <label>الاسم<input name="name" required maxlength="200" placeholder="مثلا: سكر 1كغ" /></label>
-          <label>الفئة<select name="categoryId"><option value="">— بدون فئة —</option></select></label>
-          <label>باركود (اختياري)<input name="barcode" maxlength="64" /></label>
-          <label>التكلفة الافتراضية (سنتيم)<input name="defaultUnitCost" inputmode="numeric" value="0" /></label>
-          <label>سعر البيع الافتراضي (سنتيم)<input name="defaultSalePrice" inputmode="numeric" value="0" /></label>
-          <label>الحد الأدنى للمخزون<input name="minStock" inputmode="numeric" value="0" /></label>
-          <button type="submit">إنشاء المنتج</button>
-        </form>
-        <div class="msg" id="product-msg"></div>
-      </section>
-      <section class="card">
-        <h2>استلام مخزون (سند شراء)</h2>
-        <form id="receipt-form">
-          <label>المستودع<select name="warehouseCode"><option value="MAIN">MAIN</option></select></label>          <label>المورّد<input name="supplierName" maxlength="200" placeholder="مثلا: مورّد الجملة" /></label>
-          <label>SKU المنتج<input name="sku" required placeholder="مثلا: SUGAR-1KG" /></label>
-          <label>الكمية<input name="qty" required inputmode="numeric" value="10" /></label>
-          <label>تكلفة الوحدة (سنتيم)<input name="unitCost" inputmode="numeric" value="0" /></label>
-          <label>طلب الشراء (ID، اختياري)<input name="purchaseOrderId" inputmode="numeric" /></label>
-          <label>فاتورة المورّد (اختياري)<input name="supplierInvoiceNo" maxlength="64" /></label>
-          <button type="submit">استلام</button>
-        </form>
-        <div class="msg" id="receipt-msg"></div>
-      </section>
-      <section class="card">
-        <h2>عملية مخزون (صرف / تعديل / تحويل)</h2>
-        <form id="stockop-form">
-          <label>العملية<select name="op"><option value="issue">صرف</option><option value="adjust">تعديل (+/-)</option><option value="transfer">تحويل لمستودع آخر</option></select></label>
-          <label>SKU المنتج<input name="sku" required /></label>
-          <label>المستودع (المصدر)<input name="warehouseCode" value="MAIN" /></label>
-          <label>مستودع الوجهة (للتحويل)<input name="toWarehouseCode" /></label>
-          <label>الكمية (سالب مسموح للتعديل)<input name="qty" required inputmode="numeric" /></label>
-          <label>السبب<select name="reason"><option value="correction">تصحيح</option><option value="damaged">تالف</option><option value="expired">منتهي</option><option value="lost">ضائع</option><option value="found">موجود</option></select></label>
-          <button type="submit">تنفيذ</button>
-        </form>
-        <div class="msg" id="stockop-msg"></div>
-      </section>
-      <section class="card wide">
-        <h2>المشتريات (طلب → استلام)</h2>
-        <form id="po-form">
-          <label>رمز المورّد<input name="supplierCode" required /></label>
-          <label>SKU<input name="sku" required /></label>
-          <label>الكمية<input name="qty" required inputmode="numeric" value="10" /></label>
-          <label>التكلفة (سنتيم)<input name="unitCost" inputmode="numeric" value="0" /></label>
-          <button type="submit">إنشاء طلب شراء</button>
-        </form>
-        <div class="msg" id="po-msg"></div>
-        <table>
-          <thead><tr><th>الرقم</th><th>المورّد</th><th>الحالة</th><th>المجموع</th><th>إجراء</th></tr></thead>
-          <tbody id="po-body"><tr><td colspan="5">…</td></tr></tbody>
-        </table>
-      </section>
-      <section class="card wide">
-        <h2>المبيعات (طلب → توصيل → فاتورة)</h2>
-        <form id="sales-form">
-          <label>رمز الزبون<input name="customerCode" required /></label>
-          <label>SKU<input name="sku" required /></label>
-          <label>الكمية<input name="qty" required inputmode="numeric" value="1" /></label>
-          <label>سعر الوحدة (سنتيم)<input name="unitPrice" inputmode="numeric" value="0" /></label>
-          <button type="submit">إنشاء طلب بيع</button>
-        </form>
-        <div class="msg" id="sales-msg"></div>
-        <table>
-          <thead><tr><th>الرقم</th><th>النوع</th><th>الحالة</th><th>المجموع</th><th>إجراء</th></tr></thead>
-          <tbody id="sales-body"><tr><td colspan="5">…</td></tr></tbody>
-        </table>
-      </section>
-      <section class="card wide">
-        <h2>المدفوعات (قبض / دفع)</h2>
-        <form id="payment-form">
-          <label>رمز المتعامل<input name="partyCode" required /></label>
-          <label>الاتجاه<select name="direction"><option value="in">قبض من زبون</option><option value="out">دفع لمورّد</option></select></label>
-          <label>المبلغ (سنتيم)<input name="amount" required inputmode="numeric" /></label>
-          <label>الطريقة<select name="method"><option value="cash">نقدي</option><option value="bank_transfer">تحويل</option><option value="check">شيك</option></select></label>
-          <label>حساب الصندوق (للنقدي)<input name="cashAccountCode" value="TILL" /></label>
-          <label>تخصيص لـ<select name="targetType"><option value="">بدون تخصيص</option><option value="sales_invoice">فاتورة بيع</option><option value="purchase_receipt">سند استلام</option></select></label>
-          <label>رقم الهدف (ID)<input name="targetId" inputmode="numeric" /></label>
-          <button type="submit">تسجيل الدفع</button>
-        </form>
-        <div class="msg" id="payment-msg"></div>
-        <table>
-          <thead><tr><th>الرقم</th><th>الاتجاه</th><th>المبلغ</th><th>الحالة</th></tr></thead>
-          <tbody id="payments-body"><tr><td colspan="4">…</td></tr></tbody>
-        </table>
-      </section>
-      <section class="card wide">
-        <h2>المصاريف التشغيلية</h2>
-        <form id="expense-form">
-          <label>الفئة<select name="categoryCode"><option value="FUEL">FUEL</option><option value="WAGES">WAGES</option><option value="RENT">RENT</option><option value="MAINTENANCE">MAINTENANCE</option><option value="UTILITIES">UTILITIES</option><option value="OTHER">OTHER</option></select></label>
-          <label>المبلغ (سنتيم)<input name="amount" required inputmode="numeric" /></label>
-          <label>الطريقة<select name="method"><option value="cash">نقدي</option><option value="bank_transfer">تحويل</option><option value="check">شيك</option></select></label>
-          <label>حساب الصندوق (للنقدي)<input name="cashAccountCode" value="TILL" /></label>
-          <label>ملاحظات<input name="notes" maxlength="200" /></label>
-          <button type="submit">تسجيل المصروف</button>
-        </form>
-        <div class="msg" id="expense-msg"></div>
-        <table>
-          <thead><tr><th>الرقم</th><th>الفئة</th><th>المبلغ</th><th>الحالة</th></tr></thead>
-          <tbody id="expenses-body"><tr><td colspan="4">…</td></tr></tbody>
-        </table>
-      </section>
-      <section class="card wide">
-        <h2>الجرد (عدّ → مراجعة → ترحيل)</h2>
-        <form id="count-form">
-          <label>المستودع<select id="count-warehouse"><option value="MAIN">MAIN</option></select></label>
-          <button type="submit">بدء جرد جديد</button>
-        </form>
-        <div class="msg" id="count-msg"></div>
-        <table>
-          <thead><tr><th>الرقم</th><th>الحالة</th><th>السطور</th><th>إجراء</th></tr></thead>
-          <tbody id="counts-body"><tr><td colspan="4">…</td></tr></tbody>
-        </table>
-        <form id="countline-form">
-          <label>الجرد (ID)<input name="countId" required inputmode="numeric" /></label>
-          <label>SKU<input name="sku" required /></label>
-          <label>المعدود<input name="countedQty" required inputmode="numeric" /></label>
-          <label>السبب (للفروقات)<input name="reasonCode" maxlength="32" placeholder="damaged / lost / found…" /></label>
-          <button type="submit">إضافة سطر عدّ</button>
-        </form>
-        <div class="msg" id="countline-msg"></div>
-      </section>
-      <section class="card wide">
-        <h2>التوصيل (طرق وشاحنات)</h2>
-        <form id="crew-form">
-          <label>سائق جديد (الاسم)<input name="driverName" maxlength="100" /></label>
-          <label>شاحنة جديدة (الرمز)<input name="vehicleCode" maxlength="16" /></label>
-          <button type="submit">إضافة طاقم</button>
-        </form>
-        <form id="route-form">
-          <label>تاريخ الطريق<input name="routeDate" placeholder="YYYY-MM-DD" /></label>
-          <button type="submit">إنشاء طريق</button>
-        </form>
-        <div class="msg" id="route-msg"></div>
-        <table>
-          <thead><tr><th>الرقم</th><th>التاريخ</th><th>الحالة</th><th>التوقفات</th><th>إجراء</th></tr></thead>
-          <tbody id="routes-body"><tr><td colspan="5">…</td></tr></tbody>
-        </table>
-        <div id="route-detail" style="display:none">
-          <h3 id="route-title"></h3>
-          <form id="assign-form">
-            <label>السائق<select id="assign-driver"></select></label>
-            <label>الشاحنة<select id="assign-vehicle"></select></label>
-            <button type="submit">تعيين الطاقم</button>
-          </form>
-          <form id="stop-form">
-            <label>رمز الزبون<input name="partyCode" required /></label>
-            <label>سند التوصيل (ID، اختياري)<input name="deliveryDocId" inputmode="numeric" /></label>
-            <button type="submit">إضافة توقف</button>
-          </form>
-          <table>
-            <thead><tr><th>#</th><th>الزبون</th><th>السند</th><th>الحالة</th><th>المحصّل</th><th>إجراء</th></tr></thead>
-            <tbody id="stops-body"></tbody>
-          </table>
+  <a class="skip" href="#view">Skip / تخطي</a>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Primary">
+      <div class="side-brand">
+        <span class="side-logo" aria-hidden="true">📦</span>
+        <span class="side-name" id="brand-name">المستودع</span>
+      </div>
+      <nav id="nav" aria-label="Sections"></nav>
+      <div class="side-foot">
+        <div class="transport" id="transport">…</div>
+      </div>
+    </aside>
+    <div class="main-col">
+      <header class="topbar">
+        <button id="nav-toggle" class="icon-btn" aria-label="Menu" aria-expanded="true">☰</button>
+        <div class="search-wrap">
+          <span aria-hidden="true">🔎</span>
+          <input id="global-search" type="search" autocomplete="off" aria-label="بحث المنتجات / Recherche articles" />
         </div>
-      </section>
-      <section class="card wide">
-        <h2>المتعاملون (زبائن / مورّدون)</h2>
-        <form id="party-form">
-          <label>الاسم<input name="displayName" required maxlength="200" /></label>
-          <label>الدور<select name="role"><option value="customer">زبون</option><option value="supplier">مورّد</option><option value="both">كلاهما</option></select></label>
-          <label>الهاتف<input name="phone" maxlength="32" /></label>
-          <button type="submit">إنشاء متعامل</button>
-        </form>
-        <div class="msg" id="party-msg"></div>
-        <table>
-          <thead><tr><th>الرمز</th><th>الاسم</th><th>الأدوار</th><th>المستحق (سنتيم)</th></tr></thead>
-          <tbody id="parties-body"><tr><td colspan="4">…</td></tr></tbody>
-        </table>
-      </section>
-      <section class="card wide">
-        <h2>المخزون (مشتق من حركات حقيقية)</h2>
-        <div class="row">
-          <button id="refresh" type="button">تحديث</button>
-          <select id="stock-warehouse"><option value="MAIN">MAIN</option></select>
-          <span class="hint">stock = SUM(stock_movements.qty)</span>
+        <div class="top-actions">
+          <span id="route-title" class="route-title" role="status"></span>
+          <select id="lang-sel" class="lang-sel" aria-label="Langue / اللغة">
+            <option value="ar">العربية</option>
+            <option value="fr">Français</option>
+          </select>
         </div>
-        <table>
-          <thead><tr><th>SKU</th><th>المنتج</th><th>المخزون</th><th>سعر البيع (سنتيم)</th></tr></thead>
-          <tbody id="stock-body"><tr><td colspan="3">…</td></tr></tbody>
-        </table>
-      </section>
-      <section class="card wide">
-        <h2>آخر سندات الاستلام</h2>
-        <table>
-          <thead><tr><th>رقم السند</th><th>المورّد</th><th>الحالة</th><th>التاريخ</th></tr></thead>
-          <tbody id="receipts-body"><tr><td colspan="4">…</td></tr></tbody>
-        </table>
-      </section>
-    </main>
+      </header>
+      <main id="view" class="view" tabindex="-1"></main>
+    </div>
   </div>
+  <div id="dialog-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

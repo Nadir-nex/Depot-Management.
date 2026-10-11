@@ -12,12 +12,30 @@
     "seed": "node scripts/seed.js",
     "db:integrity": "node scripts/integrity-check.js",
     "import:source": "node scripts/import-source.js",
-    "export:data": "node scripts/export-data.js"
+    "export:data": "node scripts/export-data.js",
+    "dist:win": "bash Scripts/build-windows-from-linux.exe.sh"
+  },
+  "build": {
+    "appId": "com.depot.management",
+    "productName": "Depot Management",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "package.json",
+      "src/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
   },
   "engines": {
     "node": ">=22.5"
   },
   "devDependencies": {
-    "electron": "^44.4.5"
+    "electron": "^44.4.5",
+    "electron-builder": "^26.0.0"
   }
 }

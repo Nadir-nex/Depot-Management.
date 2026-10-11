@@ -64,9 +64,19 @@ describe('db foundation', () => {
     // source prototype) must never be migrated in place: that would park a
     // second schema beside the authoritative one. The runner refuses before
     // any write; legitimate migration goes through the staged import CLI.
-    const source = path.join(REPO_ROOT, 'db', 'database.sqlite');
+    // NOTE: the legacy db/database.sqlite fixture was removed by operator
+    // order, so this test synthesizes an equivalent foreign-schema database
+    // (foreign `items` table with rows, none of the current-schema tables).
+    // The assertions below are unchanged: same refusal code, same untouched
+    // data, same proof that no write happened.
     const copy = tmpFile('foreign-copy.sqlite');
-    fs.copyFileSync(source, copy);
+    const setup = openDatabase(copy);
+    try {
+      setup.exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)');
+      setup.exec("INSERT INTO items (name) VALUES ('probe-a'), ('probe-b'), ('probe-c')");
+    } finally {
+      setup.close();
+    }
     const db = openDatabase(copy);
     try {
       const itemsBefore = db.prepare('SELECT COUNT(*) n FROM items').get().n;
